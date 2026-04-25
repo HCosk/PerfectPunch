@@ -1,0 +1,9 @@
+{
+  "background": 0,
+  "cross": 1,
+  "jab": 2,
+  "left_hook": 3,
+  "left_uppercut": 4,
+  "right_hook": 5,
+  "right_uppercut": 6
+}

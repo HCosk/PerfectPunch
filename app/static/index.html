@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PerfectPunch</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;600&family=Fira+Sans:wght@400;500;600;700;800&display=swap");
+
+      :root {
+        color-scheme: light;
+        --bg: #f6f7f5;
+        --surface: #ffffff;
+        --surface-soft: #eef2f0;
+        --surface-strong: #0d1519;
+        --text: #151718;
+        --muted: #5c6763;
+        --line: #dde4e0;
+        --line-strong: #c6d2cd;
+        --teal: #148a8a;
+        --coral: #d56e4f;
+        --gold: #b88c3c;
+        --green: #3d7a56;
+        --ink: #0b1215;
+        --shadow-soft: 0 18px 40px rgba(17, 24, 21, 0.06);
+        --shadow-deep: 0 30px 80px rgba(9, 15, 18, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Fira Sans", system-ui, sans-serif;
+        background:
+          radial-gradient(circle at top right, rgba(20, 138, 138, 0.08), transparent 28%),
+          radial-gradient(circle at left 20%, rgba(213, 110, 79, 0.08), transparent 24%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      button,
+      .filter-chip {
+        cursor: pointer;
+      }
+
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      .filter-chip:focus-visible {
+        outline: 2px solid rgba(20, 138, 138, 0.45);
+        outline-offset: 2px;
+      }
+
+      .shell {
+        max-width: 1360px;
+        margin: 0 auto;
+        padding: 24px 20px 44px;
+        display: grid;
+        gap: 28px;
+      }
+
+      .reveal {
+        animation: rise-in 520ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .masthead {
+        position: relative;
+        min-height: 328px;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: var(--shadow-deep);
+      }
+
+      .masthead::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(135deg, rgba(9, 15, 18, 0.82), rgba(9, 15, 18, 0.35) 55%, rgba(9, 15, 18, 0.65)),
+          linear-gradient(180deg, rgba(9, 15, 18, 0.12), rgba(9, 15, 18, 0.68));
+      }
+
+      .masthead-media {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .masthead-copy {
+        position: relative;
+        z-index: 1;
+        height: 100%;
+        padding: 30px 34px;
+        display: grid;
+        align-content: end;
+        gap: 12px;
+        max-width: 640px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        padding: 7px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(245, 200, 107, 0.26);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(240, 245, 243, 0.88);
+        font-family: "Fira Code", monospace;
+        font-size: 12px;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      .masthead h1 {
+        margin: 0;
+        color: #f5f7f4;
+        font-size: clamp(38px, 5vw, 62px);
+        line-height: 0.98;
+        font-weight: 800;
+      }
+
+      .masthead p {
+        margin: 0;
+        max-width: 520px;
+        color: rgba(233, 239, 236, 0.84);
+        line-height: 1.55;
+        font-size: 17px;
+      }
+
+      .masthead-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-top: 8px;
+      }
+
+      .masthead-meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: rgba(239, 243, 241, 0.86);
+        font-size: 14px;
+      }
+
+      .masthead-meta span::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.7;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 328px minmax(0, 1fr);
+        gap: 28px;
+        align-items: start;
+      }
+
+      .control-rail {
+        position: sticky;
+        top: 18px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(16px);
+        box-shadow: var(--shadow-soft);
+        display: grid;
+        gap: 18px;
+      }
+
+      .rail-block {
+        display: grid;
+        gap: 12px;
+      }
+
+      .rail-block + .rail-block {
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+      }
+
+      .rail-title {
+        display: grid;
+        gap: 4px;
+      }
+
+      .rail-title h2 {
+        margin: 0;
+        font-size: 19px;
+      }
+
+      .rail-title p,
+      .field-label,
+      .status-line,
+      .hint-text {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .artefact-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .artefact-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: var(--surface-soft);
+        border: 1px solid var(--line);
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .artefact-chip strong,
+      .mono {
+        font-family: "Fira Code", monospace;
+        font-weight: 600;
+      }
+
+      .field-grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .file-shell {
+        position: relative;
+        display: grid;
+        gap: 10px;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px dashed var(--line-strong);
+        background: linear-gradient(180deg, rgba(20, 138, 138, 0.04), rgba(255, 255, 255, 0.88));
+        transition: border-color 180ms ease-out, background-color 180ms ease-out, transform 180ms ease-out;
+        cursor: pointer;
+      }
+
+      .file-shell:hover {
+        border-color: rgba(20, 138, 138, 0.42);
+        background: linear-gradient(180deg, rgba(20, 138, 138, 0.06), rgba(255, 255, 255, 0.94));
+        transform: translateY(-1px);
+      }
+
+      .file-input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .file-picker-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .file-button {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #ffffff;
+        border: 1px solid var(--line);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .file-name {
+        min-width: 0;
+        text-align: right;
+        color: var(--muted);
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .text-field,
+      .sort-select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px 14px;
+        background: #fff;
+        color: var(--text);
+      }
+
+      .primary-button {
+        border: 0;
+        border-radius: 8px;
+        padding: 13px 16px;
+        background: linear-gradient(135deg, var(--teal), #11706f);
+        color: #f7faf8;
+        font-weight: 700;
+        letter-spacing: 0;
+        transition: transform 180ms ease-out, box-shadow 180ms ease-out, opacity 180ms ease-out;
+        box-shadow: 0 18px 36px rgba(20, 138, 138, 0.18);
+      }
+
+      .primary-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 24px 42px rgba(20, 138, 138, 0.22);
+      }
+
+      .primary-button:disabled {
+        opacity: 0.62;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .status-line {
+        min-height: 22px;
+        font-size: 14px;
+      }
+
+      .content {
+        display: grid;
+        gap: 24px;
+      }
+
+      .metric-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .metric-tile {
+        padding: 16px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.84);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow-soft);
+        display: grid;
+        gap: 8px;
+        transition: transform 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out;
+      }
+
+      .metric-tile:hover {
+        transform: translateY(-1px);
+        border-color: rgba(20, 138, 138, 0.24);
+      }
+
+      .metric-label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .metric-value {
+        font-size: clamp(24px, 2.5vw, 30px);
+        line-height: 1;
+        font-weight: 700;
+      }
+
+      .metric-note {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .stage {
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .chart-stage {
+        background: var(--surface-strong);
+        box-shadow: var(--shadow-deep);
+      }
+
+      .stage-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 20px 22px 0;
+      }
+
+      .stage-head h3,
+      .table-head h3 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .stage-head p,
+      .table-head p {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
+      .chart-stage .stage-head h3,
+      .chart-stage .stage-head p {
+        color: #edf3f0;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .toolbar label {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        color: rgba(233, 239, 236, 0.8);
+      }
+
+      .toolbar .sort-select {
+        min-width: 180px;
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.12);
+        color: #edf3f0;
+      }
+
+      .filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 18px 22px 0;
+      }
+
+      .filter-chip {
+        border: 1px solid transparent;
+        border-radius: 999px;
+        padding: 10px 12px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #edf3f0;
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        transition: transform 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out;
+      }
+
+      .filter-chip:hover {
+        transform: translateY(-1px);
+        border-color: rgba(255, 255, 255, 0.12);
+      }
+
+      .filter-chip.active {
+        border-color: rgba(245, 200, 107, 0.42);
+        background: rgba(245, 200, 107, 0.12);
+      }
+
+      .filter-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+      }
+
+      .filter-count {
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        font-family: "Fira Code", monospace;
+        font-size: 12px;
+      }
+
+      .chart-wrap {
+        padding: 14px 12px 16px;
+      }
+
+      #timeline {
+        width: 100%;
+        min-height: 430px;
+      }
+
+      .table-stage {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow-soft);
+      }
+
+      .table-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 20px 22px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .table-wrap {
+        overflow: auto;
+        max-height: 560px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+
+      thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: rgba(246, 247, 245, 0.96);
+        text-align: left;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      tbody tr {
+        transition: background-color 180ms ease-out;
+      }
+
+      tbody tr:hover {
+        background: rgba(20, 138, 138, 0.04);
+      }
+
+      tbody td {
+        padding: 16px 18px;
+        border-bottom: 1px solid rgba(221, 228, 224, 0.8);
+        vertical-align: middle;
+      }
+
+      .row-index {
+        width: 60px;
+        color: var(--muted);
+      }
+
+      .row-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+      }
+
+      .label-mark {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .status-pill::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.7;
+      }
+
+      .status-ok {
+        background: rgba(61, 122, 86, 0.1);
+        color: var(--green);
+      }
+
+      .status-low {
+        background: rgba(184, 140, 60, 0.12);
+        color: var(--gold);
+      }
+
+      .empty-state {
+        padding: 56px 22px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      @keyframes rise-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 1100px) {
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        .control-rail {
+          position: static;
+        }
+
+        .metric-row {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 720px) {
+        .shell {
+          padding: 18px 14px 34px;
+        }
+
+        .masthead {
+          min-height: 300px;
+        }
+
+        .masthead-copy {
+          padding: 20px 18px;
+        }
+
+        .metric-row {
+          grid-template-columns: 1fr;
+        }
+
+        .stage-head,
+        .table-head {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+
+        .filter-row {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+
+        .table-wrap {
+          max-height: none;
+        }
+
+        thead th,
+        tbody td {
+          padding-left: 14px;
+          padding-right: 14px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="masthead reveal">
+        <img
+          class="masthead-media"
+          src="/static/punch-banner.png"
+          alt="Sensor waveforms from a punching session."
+        />
+        <div class="masthead-copy">
+          <span class="eyebrow">Punch motion analysis</span>
+          <h1>PerfectPunch</h1>
+          <p>Read every strike with timing, confidence, and a cleaner session record.</p>
+          <div class="masthead-meta">
+            <span>Ready artefact</span>
+            <span>Single-session upload</span>
+            <span>Clear timing review</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace reveal">
+        <aside class="control-rail">
+          <section class="rail-block">
+            <div class="rail-title">
+              <h2>Session</h2>
+              <p>Bring in a round, keep the date, and run a fresh read.</p>
+            </div>
+            <div id="modelMeta" class="artefact-strip"></div>
+          </section>
+
+          <section class="rail-block">
+            <div class="field-grid">
+              <label class="field-label" for="zipFile">Session ZIP</label>
+              <label class="file-shell" for="zipFile">
+                <div class="hint-text">Accelerometer, Gyroscope, Orientation, and optional metadata.</div>
+                <div class="file-picker-row">
+                  <span class="file-button">Choose ZIP</span>
+                  <span id="fileName" class="file-name">No file chosen</span>
+                </div>
+                <input id="zipFile" class="file-input" name="file" type="file" accept=".zip" required />
+              </label>
+            </div>
+
+            <div class="field-grid">
+              <label class="field-label" for="sessionDate">Session date</label>
+              <input
+                id="sessionDate"
+                class="text-field"
+                name="session_date_override"
+                type="text"
+                placeholder="2026-04-16_16-00-00"
+              />
+            </div>
+
+            <button id="analyseButton" class="primary-button" type="button">Analyse ZIP</button>
+            <p id="status" class="status-line"></p>
+          </section>
+        </aside>
+
+        <section class="content">
+          <section id="metrics" class="metric-row"></section>
+
+          <section class="stage chart-stage">
+            <div class="stage-head">
+              <div>
+                <h3>Punch timeline</h3>
+                <p id="resultMeta">Bring in a session to begin.</p>
+              </div>
+              <div class="toolbar">
+                <label for="sortMode">
+                  Sort
+                  <select id="sortMode" class="sort-select">
+                    <option value="time-asc">Time, earliest first</option>
+                    <option value="time-desc">Time, latest first</option>
+                    <option value="confidence-desc">Confidence, highest first</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div id="filters" class="filter-row"></div>
+            <div class="chart-wrap">
+              <div id="timeline"></div>
+            </div>
+          </section>
+
+          <section class="stage table-stage">
+            <div class="table-head">
+              <div>
+                <h3>Event log</h3>
+                <p id="tableMeta">The full event list appears here.</p>
+              </div>
+            </div>
+            <div id="tableWrap" class="table-wrap"></div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const labelPalette = {
+        jab: { name: "Jab", colour: "#58d2c3" },
+        cross: { name: "Cross", colour: "#d56e4f" },
+        left_hook: { name: "Left hook", colour: "#f5c86b" },
+        right_hook: { name: "Right hook", colour: "#7ad3ff" },
+        left_uppercut: { name: "Left uppercut", colour: "#8ce3c2" },
+        right_uppercut: { name: "Right uppercut", colour: "#f1b1cf" },
+        uncertain: { name: "Uncertain", colour: "#b88c3c" },
+      };
+
+      const labelOrder = [
+        "jab",
+        "cross",
+        "left_hook",
+        "right_hook",
+        "left_uppercut",
+        "right_uppercut",
+        "uncertain",
+      ];
+
+      const state = {
+        model: null,
+        result: null,
+        activeLabel: "all",
+        sortMode: "time-asc",
+      };
+
+      const modelMeta = document.getElementById("modelMeta");
+      const metrics = document.getElementById("metrics");
+      const filters = document.getElementById("filters");
+      const tableWrap = document.getElementById("tableWrap");
+      const tableMeta = document.getElementById("tableMeta");
+      const resultMeta = document.getElementById("resultMeta");
+      const statusEl = document.getElementById("status");
+      const zipInput = document.getElementById("zipFile");
+      const fileName = document.getElementById("fileName");
+      const sessionDateInput = document.getElementById("sessionDate");
+      const analyseButton = document.getElementById("analyseButton");
+      const sortMode = document.getElementById("sortMode");
+
+      function setBusy(message, busy) {
+        statusEl.textContent = message;
+        analyseButton.disabled = busy;
+      }
+
+      function formatPercentage(value) {
+        return `${Math.round(value * 100)}%`;
+      }
+
+      function formatLabel(rawLabel) {
+        return labelPalette[rawLabel]?.name || rawLabel.replaceAll("_", " ");
+      }
+
+      function fetchModelInfo() {
+        return fetch("/api/model")
+          .then((response) => response.json())
+          .then((payload) => {
+            state.model = payload;
+            renderModel(payload);
+          });
+      }
+
+      function renderModel(payload) {
+        const chips = [];
+        chips.push(`<span class="artefact-chip"><strong>${payload.trained ? "Ready" : "Missing"}</strong></span>`);
+        chips.push(`<span class="artefact-chip">Device <strong>${payload.device}</strong></span>`);
+        if (payload.model_version) {
+          chips.push(`<span class="artefact-chip">Version <strong>${payload.model_version}</strong></span>`);
+        }
+        if (payload.metrics) {
+          chips.push(
+            `<span class="artefact-chip">Punch accuracy <strong>${formatPercentage(payload.metrics.punch_accuracy)}</strong></span>`
+          );
+          chips.push(
+            `<span class="artefact-chip">Punch macro F1 <strong>${payload.metrics.punch_macro_f1.toFixed(3)}</strong></span>`
+          );
+        }
+        modelMeta.innerHTML = chips.join("");
+      }
+
+      function buildMetricTiles(payload) {
+        const events = payload?.events || [];
+        const uncertainCount = events.filter((event) => event.label === "uncertain").length;
+        const averageConfidence =
+          events.length > 0
+            ? events.reduce((sum, event) => sum + Number(event.confidence || 0), 0) / events.length
+            : 0;
+        const distinctLabels = new Set(events.filter((event) => event.label !== "uncertain").map((event) => event.label));
+
+        const tiles = [
+          {
+            label: "Events",
+            value: events.length,
+            note: payload ? `${distinctLabels.size} punch types in view` : "Bring in a round to begin",
+          },
+          {
+            label: "Average confidence",
+            value: averageConfidence ? averageConfidence.toFixed(3) : "0.000",
+            note: payload ? "Across the current round" : "Ready for the first read",
+          },
+          {
+            label: "Uncertain events",
+            value: uncertainCount,
+            note: events.length ? `${formatPercentage(uncertainCount / events.length)} of the round` : "No uncertainty recorded",
+          },
+          {
+            label: "Duration",
+            value: payload ? `${Math.round(payload.duration_sec)}s` : "0s",
+            note: payload ? payload.session_date || "Session date pending" : "Session date pending",
+          },
+        ];
+
+        metrics.innerHTML = tiles
+          .map(
+            (tile, index) => `
+              <article class="metric-tile reveal" style="animation-delay:${index * 60}ms">
+                <div class="metric-label">${tile.label}</div>
+                <div class="metric-value">${tile.value}</div>
+                <div class="metric-note">${tile.note}</div>
+              </article>
+            `
+          )
+          .join("");
+      }
+
+      function buildFilterChips(payload) {
+        if (!payload) {
+          filters.innerHTML = "";
+          return;
+        }
+        const allCount = payload.events.length;
+        const entries = [["all", allCount], ...labelOrder.filter((label) => payload.summary_counts[label]).map((label) => [label, payload.summary_counts[label]])];
+        filters.innerHTML = entries
+          .map(([label, count]) => {
+            const palette = labelPalette[label] || { name: "All events", colour: "#edf3f0" };
+            const activeClass = state.activeLabel === label ? "active" : "";
+            const title = label === "all" ? "All events" : palette.name;
+            const dot = label === "all" ? `<span class="filter-dot" style="background:#edf3f0"></span>` : `<span class="filter-dot" style="background:${palette.colour}"></span>`;
+            return `
+              <button type="button" class="filter-chip ${activeClass}" data-label="${label}">
+                ${dot}
+                <span>${title}</span>
+                <span class="filter-count">${count}</span>
+              </button>
+            `;
+          })
+          .join("");
+      }
+
+      function getVisibleEvents() {
+        if (!state.result) {
+          return [];
+        }
+        const baseEvents =
+          state.activeLabel === "all"
+            ? [...state.result.events]
+            : state.result.events.filter((event) => event.label === state.activeLabel);
+        switch (state.sortMode) {
+          case "time-desc":
+            return baseEvents.sort((left, right) => Number(right.time_sec) - Number(left.time_sec));
+          case "confidence-desc":
+            return baseEvents.sort((left, right) => Number(right.confidence) - Number(left.confidence));
+          default:
+            return baseEvents.sort((left, right) => Number(left.time_sec) - Number(right.time_sec));
+        }
+      }
+
+      function renderTimeline(events) {
+        if (!events.length) {
+          document.getElementById("timeline").innerHTML = `<div class="empty-state">No events detected.</div>`;
+          return;
+        }
+
+        const eventTraces = labelOrder
+          .filter((label) => events.some((event) => event.label === label))
+          .map((label) => {
+            const grouped = events.filter((event) => event.label === label);
+            return {
+              type: "scatter",
+              mode: "markers",
+              name: formatLabel(label),
+              x: grouped.map((event) => event.time_sec),
+              y: grouped.map(() => formatLabel(label)),
+              xaxis: "x",
+              yaxis: "y",
+              marker: {
+                size: grouped.map((event) => (event.label === "uncertain" ? 11 : 13)),
+                color: labelPalette[label].colour,
+                opacity: 0.95,
+                symbol: label === "uncertain" ? "diamond-open" : "circle",
+                line: {
+                  width: label === "uncertain" ? 1.8 : 0,
+                  color: labelPalette[label].colour,
+                },
+              },
+              customdata: grouped.map((event) => [formatLabel(event.label), Number(event.confidence).toFixed(3), event.status]),
+              hovertemplate:
+                "%{customdata[0]}<br>%{x}s<br>Confidence %{customdata[1]}<br>Status %{customdata[2]}<extra></extra>",
+            };
+          });
+
+        const confidenceTrace = {
+          type: "bar",
+          x: events.map((event) => event.time_sec),
+          y: events.map((event) => event.confidence),
+          xaxis: "x2",
+          yaxis: "y2",
+          marker: {
+            color: events.map((event) => labelPalette[event.label]?.colour || "#b88c3c"),
+            opacity: 0.86,
+          },
+          hovertemplate: "Confidence %{y:.3f}<br>%{x}s<extra></extra>",
+          showlegend: false,
+        };
+
+        const meanConfidence = events.reduce((sum, event) => sum + Number(event.confidence), 0) / events.length;
+        const guideTrace = {
+          type: "scatter",
+          mode: "lines",
+          x: [events[0].time_sec, events[events.length - 1].time_sec],
+          y: [meanConfidence, meanConfidence],
+          xaxis: "x2",
+          yaxis: "y2",
+          line: {
+            color: "rgba(245, 200, 107, 0.8)",
+            width: 1.4,
+            dash: "dot",
+          },
+          hoverinfo: "skip",
+          showlegend: false,
+        };
+
+        Plotly.react(
+          "timeline",
+          [...eventTraces, confidenceTrace, guideTrace],
+          {
+            showlegend: false,
+            margin: { l: 90, r: 24, t: 12, b: 56 },
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            grid: {
+              rows: 2,
+              columns: 1,
+              pattern: "independent",
+              roworder: "top to bottom",
+              rowheights: [0.68, 0.32],
+            },
+            xaxis: {
+              showgrid: true,
+              gridcolor: "rgba(237, 243, 240, 0.08)",
+              zeroline: false,
+              tickfont: { color: "rgba(237, 243, 240, 0.76)" },
+              showticklabels: false,
+            },
+            yaxis: {
+              type: "category",
+              categoryorder: "array",
+              categoryarray: labelOrder.map((label) => formatLabel(label)),
+              automargin: true,
+              tickfont: { color: "rgba(237, 243, 240, 0.82)" },
+              gridcolor: "rgba(237, 243, 240, 0.08)",
+            },
+            xaxis2: {
+              title: { text: "Seconds", font: { color: "rgba(237, 243, 240, 0.82)" } },
+              matches: "x",
+              showgrid: true,
+              gridcolor: "rgba(237, 243, 240, 0.08)",
+              zeroline: false,
+              tickfont: { color: "rgba(237, 243, 240, 0.76)" },
+            },
+            yaxis2: {
+              title: { text: "Confidence", font: { color: "rgba(237, 243, 240, 0.82)" } },
+              range: [0, 1.02],
+              tickfont: { color: "rgba(237, 243, 240, 0.76)" },
+              gridcolor: "rgba(237, 243, 240, 0.08)",
+              zeroline: false,
+            },
+            bargap: 0.32,
+            hovermode: "closest",
+          },
+          { displayModeBar: false, responsive: true }
+        );
+      }
+
+      function renderTable(events) {
+        if (!events.length) {
+          tableWrap.innerHTML = `<div class="empty-state">No events detected.</div>`;
+          tableMeta.textContent = "No matching events for the current filter.";
+          return;
+        }
+
+        tableMeta.textContent = `${events.length} events in the current view.`;
+        const rows = events
+          .map((event, index) => {
+            const palette = labelPalette[event.label] || labelPalette.uncertain;
+            const statusClass = event.status === "ok" ? "status-pill status-ok" : "status-pill status-low";
+            const statusLabel = event.status === "ok" ? "Confirmed" : "Uncertain";
+            return `
+              <tr>
+                <td class="row-index mono">${String(index + 1).padStart(2, "0")}</td>
+                <td class="mono">${Number(event.time_sec).toFixed(3)}s</td>
+                <td>
+                  <span class="row-label">
+                    <span class="label-mark" style="background:${palette.colour}"></span>
+                    ${palette.name}
+                  </span>
+                </td>
+                <td class="mono">${Number(event.confidence).toFixed(3)}</td>
+                <td><span class="${statusClass}">${statusLabel}</span></td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        tableWrap.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Time</th>
+                <th>Label</th>
+                <th>Confidence</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      }
+
+      function renderExperience() {
+        buildMetricTiles(state.result);
+        buildFilterChips(state.result);
+        const visibleEvents = getVisibleEvents();
+        renderTimeline(visibleEvents);
+        renderTable(visibleEvents);
+      }
+
+      function renderAnalysis(payload) {
+        state.result = payload;
+        state.activeLabel = "all";
+        state.sortMode = "time-asc";
+        sortMode.value = "time-asc";
+        resultMeta.textContent = `Recorded ${payload.session_date} · ${Math.round(payload.duration_sec)} seconds · Model ${payload.model_version}`;
+        sessionDateInput.value = payload.session_date || "";
+        renderExperience();
+      }
+
+      function submitAnalysis() {
+        if (!zipInput.files.length) {
+          statusEl.textContent = "Please choose a ZIP file.";
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", zipInput.files[0]);
+        if (sessionDateInput.value.trim()) {
+          formData.append("session_date_override", sessionDateInput.value.trim());
+        }
+
+        setBusy("Analysing ZIP...", true);
+        fetch("/api/analyse", { method: "POST", body: formData })
+          .then(async (response) => {
+            const payload = await response.json();
+            if (!response.ok) {
+              throw new Error(payload.detail || "The analysis could not be completed.");
+            }
+            renderAnalysis(payload);
+            statusEl.textContent = "Analysis complete.";
+          })
+          .catch((error) => {
+            statusEl.textContent = error.message;
+          })
+          .finally(() => {
+            setBusy(statusEl.textContent, false);
+          });
+      }
+
+      analyseButton.addEventListener("click", submitAnalysis);
+
+      zipInput.addEventListener("change", () => {
+        fileName.textContent = zipInput.files.length ? zipInput.files[0].name : "No file chosen";
+      });
+
+      filters.addEventListener("click", (event) => {
+        const chip = event.target.closest("[data-label]");
+        if (!chip || !state.result) {
+          return;
+        }
+        state.activeLabel = chip.dataset.label;
+        renderExperience();
+      });
+
+      sortMode.addEventListener("change", (event) => {
+        state.sortMode = event.target.value;
+        if (state.result) {
+          renderExperience();
+        }
+      });
+
+      fetchModelInfo().catch(() => {
+        statusEl.textContent = "Model information could not be loaded.";
+      });
+      buildMetricTiles(null);
+      filters.innerHTML = "";
+      tableWrap.innerHTML = `<div class="empty-state">No session loaded yet.</div>`;
+      document.getElementById("timeline").innerHTML = `<div class="empty-state">No session loaded yet.</div>`;
+    </script>
+  </body>
+</html>
