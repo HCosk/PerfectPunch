@@ -1,3 +1,4 @@
+const path = require("node:path");
 const fs = require("node:fs/promises");
 
 const express = require("express");
@@ -34,13 +35,22 @@ function asyncHandler(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 }
 
+function getAppRedirectTarget(req, targetPath) {
+  const normalizedTarget = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
+  if (config.basePath) {
+    return config.withBasePath(normalizedTarget);
+  }
+  const sourceDir = path.posix.dirname(req.path || "/");
+  const relativeTarget = path.posix.relative(sourceDir, normalizedTarget);
+  return relativeTarget || ".";
+}
+
 async function ensureDirectories() {
   await fs.mkdir(config.uploadDir, { recursive: true });
 }
 
 function buildApp() {
   const app = express();
-  const withBasePath = config.withBasePath;
 
   app.use(express.urlencoded({ extended: false }));
   app.use(express.json({ limit: `${config.uploadPayloadLimitMb}mb` }));
@@ -52,12 +62,12 @@ function buildApp() {
   });
 
   app.get("/", (req, res) => {
-    res.redirect(req.user ? withBasePath("/dashboard") : withBasePath("/login"));
+    res.redirect(req.user ? getAppRedirectTarget(req, "/dashboard") : getAppRedirectTarget(req, "/login"));
   });
 
   app.get("/login", (req, res) => {
     if (req.user) {
-      return res.redirect(withBasePath("/dashboard"));
+      return res.redirect(getAppRedirectTarget(req, "/dashboard"));
     }
     return res.send(renderAuthPage({ mode: "login" }));
   });
@@ -72,13 +82,13 @@ function buildApp() {
       }
       const session = await createAuthSession(user.id);
       persistSessionCookie(res, session.token);
-      return res.redirect(withBasePath("/dashboard"));
+      return res.redirect(getAppRedirectTarget(req, "/dashboard"));
     })
   );
 
   app.get("/signup", (req, res) => {
     if (req.user) {
-      return res.redirect(withBasePath("/dashboard"));
+      return res.redirect(getAppRedirectTarget(req, "/dashboard"));
     }
     return res.send(renderAuthPage({ mode: "signup", values: { jabArm: "right" } }));
   });
@@ -103,7 +113,7 @@ function buildApp() {
         });
         const session = await createAuthSession(user.id);
         persistSessionCookie(res, session.token);
-        return res.redirect(withBasePath("/dashboard"));
+        return res.redirect(getAppRedirectTarget(req, "/dashboard"));
       } catch (error) {
         return res.status(400).send(renderAuthPage({ mode: "signup", error: error.message, values }));
       }
@@ -115,7 +125,7 @@ function buildApp() {
     asyncHandler(async (req, res) => {
       await destroyAuthSession(req.authToken);
       clearSessionCookie(res);
-      res.redirect(withBasePath("/login"));
+      res.redirect(getAppRedirectTarget(req, "/login"));
     })
   );
 
@@ -150,7 +160,7 @@ function buildApp() {
       res.json({
         ok: true,
         sessionId,
-        redirectTo: withBasePath(`/sessions/${sessionId}`)
+        redirectTo: config.basePath ? config.withBasePath(`/sessions/${sessionId}`) : `../sessions/${sessionId}`
       });
     })
   );
@@ -192,7 +202,7 @@ function buildApp() {
 
   app.use((error, req, res, _next) => {
     const status = error.statusCode || 500;
-    const isApiRequest = req.path.startsWith("/api/") || req.originalUrl.startsWith(withBasePath("/api/"));
+    const isApiRequest = req.path.startsWith("/api/") || req.originalUrl.startsWith(config.withBasePath("/api/"));
     if (isApiRequest) {
       return res.status(status).json({ ok: false, error: error.message || "Unexpected error." });
     }

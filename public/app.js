@@ -63,7 +63,7 @@ function setupUploadForm() {
     return;
   }
   const basePath = document.body?.dataset.basePath || "";
-  const apiSessionsUrl = `${basePath}/api/sessions`;
+  const apiSessionsUrl = basePath ? `${basePath}/api/sessions` : "../api/sessions";
   const status = form.querySelector("[data-upload-status]");
 
   toggleUploadMode(form);

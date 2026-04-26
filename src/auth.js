@@ -1,7 +1,18 @@
+const path = require("node:path");
 const crypto = require("node:crypto");
 
 const { execute, query } = require("./db");
 const config = require("./config");
+
+function getAppRedirectTarget(req, targetPath) {
+  const normalizedTarget = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
+  if (config.basePath) {
+    return config.withBasePath(normalizedTarget);
+  }
+  const sourceDir = path.posix.dirname(req.path || "/");
+  const relativeTarget = path.posix.relative(sourceDir, normalizedTarget);
+  return relativeTarget || ".";
+}
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const derived = crypto.scryptSync(password, salt, 64).toString("hex");
@@ -183,7 +194,7 @@ function requireAuth(req, res, next) {
     if (isApiRequest) {
       return res.status(401).json({ ok: false, error: "Authentication required." });
     }
-    return res.redirect(config.withBasePath("/login"));
+    return res.redirect(getAppRedirectTarget(req, "/login"));
   }
   return next();
 }

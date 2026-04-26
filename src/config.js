@@ -15,8 +15,26 @@ function readBoolean(value, fallback = false) {
   return value === "1" || value === "true";
 }
 
+function readBasePath(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "/") {
+    return "";
+  }
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeadingSlash.replace(/\/+$/, "");
+}
+
+const basePath = readBasePath(process.env.APP_BASE_PATH);
+
+function withBasePath(routePath) {
+  const normalizedPath = routePath.startsWith("/") ? routePath : `/${routePath}`;
+  return `${basePath}${normalizedPath}`;
+}
+
 module.exports = {
   rootDir,
+  basePath,
+  withBasePath,
   port: readInteger(process.env.PORT, 3000),
   publicDir: path.join(rootDir, "public"),
   storageDir: path.join(rootDir, "storage"),
