@@ -1,3 +1,4 @@
+const config = require("./config");
 const {
   escapeHtml,
   formatArmLabel,
@@ -15,29 +16,29 @@ function renderLayout({ title, user, activePath = "", pageName = "app", content 
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(title)}</title>
-    <link rel="stylesheet" href="/assets/styles.css" />
+    <link rel="stylesheet" href="${config.withBasePath("/assets/styles.css")}" />
   </head>
-  <body data-page="${escapeHtml(pageName)}">
+  <body data-page="${escapeHtml(pageName)}" data-base-path="${escapeHtml(config.basePath)}">
     <div class="shell">
       ${user ? renderTopbar(user, activePath) : ""}
       <main class="page-shell ${user ? "" : "page-shell--public"}">
         ${content}
       </main>
     </div>
-    <script src="/assets/app.js" defer></script>
+    <script src="${config.withBasePath("/assets/app.js")}" defer></script>
   </body>
 </html>`;
 }
 
 function renderTopbar(user, activePath) {
   const links = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/sessions/new", label: "Record session" },
-    { href: "/history", label: "History" }
+    { path: "/dashboard", label: "Dashboard" },
+    { path: "/sessions/new", label: "Record session" },
+    { path: "/history", label: "History" }
   ];
   return `
     <header class="topbar">
-      <a class="brand" href="/dashboard">
+      <a class="brand" href="${config.withBasePath("/dashboard")}">
         <span class="brand-mark">PP</span>
         <span>
           <strong>PerfectPunch</strong>
@@ -47,8 +48,8 @@ function renderTopbar(user, activePath) {
       <nav class="nav-links">
         ${links
           .map((link) => {
-            const isActive = activePath === link.href ? "nav-link--active" : "";
-            return `<a class="nav-link ${isActive}" href="${link.href}">${link.label}</a>`;
+            const isActive = activePath === link.path ? "nav-link--active" : "";
+            return `<a class="nav-link ${isActive}" href="${config.withBasePath(link.path)}">${link.label}</a>`;
           })
           .join("")}
       </nav>
@@ -57,7 +58,7 @@ function renderTopbar(user, activePath) {
           <strong>${escapeHtml(user.username)}</strong>
           <small>Athlete · Jab arm ${escapeHtml(user.jab_arm)}</small>
         </div>
-        <form method="post" action="/logout">
+        <form method="post" action="${config.withBasePath("/logout")}">
           <button type="submit" class="ghost-button">Log out</button>
         </form>
       </div>
@@ -69,10 +70,10 @@ function renderAuthPage({ mode, error = "", values = {} }) {
   const isLogin = mode === "login";
   const title = isLogin ? "Welcome back" : "Create your account";
   const submitLabel = isLogin ? "Sign in" : "Create account";
-  const altHref = isLogin ? "/signup" : "/login";
+  const altHref = isLogin ? config.withBasePath("/signup") : config.withBasePath("/login");
   const altLabel = isLogin ? "Need an account?" : "Already registered?";
   const altCta = isLogin ? "Create one" : "Sign in";
-  const action = isLogin ? "/login" : "/signup";
+  const action = isLogin ? config.withBasePath("/login") : config.withBasePath("/signup");
 
   return renderLayout({
     title: isLogin ? "PerfectPunch Login" : "PerfectPunch Sign Up",
@@ -271,7 +272,7 @@ function renderSessionsTable(sessions, emptyMessage = "No sessions recorded yet.
               return `
                 <tr>
                   <td>
-                    <a class="row-link" href="/sessions/${session.id}">${escapeHtml(session.title)}</a>
+                    <a class="row-link" href="${config.withBasePath(`/sessions/${session.id}`)}">${escapeHtml(session.title)}</a>
                     <small>${escapeHtml(session.notes || "No notes")}</small>
                   </td>
                   <td>
@@ -310,8 +311,8 @@ function renderDashboardPage({ user, stats, sessions, combinedSummary, progressT
           </p>
         </div>
         <div class="hero-actions">
-          <a class="primary-button" href="/sessions/new">Record a new session</a>
-          <a class="ghost-button ghost-button--light" href="/history">Open full history</a>
+          <a class="primary-button" href="${config.withBasePath("/sessions/new")}">Record a new session</a>
+          <a class="ghost-button ghost-button--light" href="${config.withBasePath("/history")}">Open full history</a>
         </div>
       </section>
 
@@ -470,7 +471,7 @@ function renderHistoryPage({ user, sessions }) {
           <p>Every recorded session is stored here, ready to reopen whenever you want to compare progress.</p>
         </div>
         <div class="hero-actions">
-          <a class="primary-button" href="/sessions/new">Record another session</a>
+          <a class="primary-button" href="${config.withBasePath("/sessions/new")}">Record another session</a>
         </div>
       </section>
       <section class="card">
@@ -594,7 +595,11 @@ function renderErrorPage({ title, message, user = null }) {
           <h1>${escapeHtml(title)}</h1>
           <p>${escapeHtml(message)}</p>
         </div>
-        ${user ? `<a class="primary-button" href="/dashboard">Back to dashboard</a>` : `<a class="primary-button" href="/login">Back to sign in</a>`}
+        ${
+          user
+            ? `<a class="primary-button" href="${config.withBasePath("/dashboard")}">Back to dashboard</a>`
+            : `<a class="primary-button" href="${config.withBasePath("/login")}">Back to sign in</a>`
+        }
       </section>
     `
   });

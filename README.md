@@ -74,6 +74,7 @@ Edit `.env` with your local credentials:
 
 ```env
 PORT=3000
+APP_BASE_PATH=
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=perfectpunch
@@ -149,6 +150,7 @@ cp .env.example .env
 
 ```env
 PORT=8000
+APP_BASE_PATH=/usr/YOUR_SERVER_ID
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=perfectpunch
@@ -184,6 +186,8 @@ npm start
 6. Open via proxy:
 
 `http://www.doc.gold.ac.uk/usr/YOUR_SERVER_ID`
+
+If your course setup gives you a `/www/...` prefix instead, set `APP_BASE_PATH` to that exact value (for example `/www/273`) and open the matching URL.
 
 ## Common Issues
 

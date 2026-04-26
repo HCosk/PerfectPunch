@@ -40,6 +40,7 @@ async function ensureDirectories() {
 
 function buildApp() {
   const app = express();
+  const withBasePath = config.withBasePath;
 
   app.use(express.urlencoded({ extended: false }));
   app.use(express.json({ limit: `${config.uploadPayloadLimitMb}mb` }));
@@ -51,12 +52,12 @@ function buildApp() {
   });
 
   app.get("/", (req, res) => {
-    res.redirect(req.user ? "/dashboard" : "/login");
+    res.redirect(req.user ? withBasePath("/dashboard") : withBasePath("/login"));
   });
 
   app.get("/login", (req, res) => {
     if (req.user) {
-      return res.redirect("/dashboard");
+      return res.redirect(withBasePath("/dashboard"));
     }
     return res.send(renderAuthPage({ mode: "login" }));
   });
@@ -71,13 +72,13 @@ function buildApp() {
       }
       const session = await createAuthSession(user.id);
       persistSessionCookie(res, session.token);
-      return res.redirect("/dashboard");
+      return res.redirect(withBasePath("/dashboard"));
     })
   );
 
   app.get("/signup", (req, res) => {
     if (req.user) {
-      return res.redirect("/dashboard");
+      return res.redirect(withBasePath("/dashboard"));
     }
     return res.send(renderAuthPage({ mode: "signup", values: { jabArm: "right" } }));
   });
@@ -102,7 +103,7 @@ function buildApp() {
         });
         const session = await createAuthSession(user.id);
         persistSessionCookie(res, session.token);
-        return res.redirect("/dashboard");
+        return res.redirect(withBasePath("/dashboard"));
       } catch (error) {
         return res.status(400).send(renderAuthPage({ mode: "signup", error: error.message, values }));
       }
@@ -114,7 +115,7 @@ function buildApp() {
     asyncHandler(async (req, res) => {
       await destroyAuthSession(req.authToken);
       clearSessionCookie(res);
-      res.redirect("/login");
+      res.redirect(withBasePath("/login"));
     })
   );
 
@@ -149,7 +150,7 @@ function buildApp() {
       res.json({
         ok: true,
         sessionId,
-        redirectTo: `/sessions/${sessionId}`
+        redirectTo: withBasePath(`/sessions/${sessionId}`)
       });
     })
   );
@@ -191,7 +192,8 @@ function buildApp() {
 
   app.use((error, req, res, _next) => {
     const status = error.statusCode || 500;
-    if (req.path.startsWith("/api/")) {
+    const isApiRequest = req.path.startsWith("/api/") || req.originalUrl.startsWith(withBasePath("/api/"));
+    if (isApiRequest) {
       return res.status(status).json({ ok: false, error: error.message || "Unexpected error." });
     }
     return res.status(status).send(

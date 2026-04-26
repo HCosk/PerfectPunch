@@ -62,6 +62,8 @@ function setupUploadForm() {
   if (!form) {
     return;
   }
+  const basePath = document.body?.dataset.basePath || "";
+  const apiSessionsUrl = `${basePath}/api/sessions`;
   const status = form.querySelector("[data-upload-status]");
 
   toggleUploadMode(form);
@@ -76,7 +78,7 @@ function setupUploadForm() {
 
     try {
       const payload = await buildUploadPayload(form);
-      const response = await fetch("/api/sessions", {
+      const response = await fetch(apiSessionsUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

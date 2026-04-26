@@ -164,7 +164,7 @@ function persistSessionCookie(res, token) {
     sameSite: "lax",
     secure: config.cookieSecure,
     maxAge: config.cookieMaxAgeMs,
-    path: "/"
+    path: config.basePath || "/"
   });
 }
 
@@ -173,16 +173,17 @@ function clearSessionCookie(res) {
     httpOnly: true,
     sameSite: "lax",
     secure: config.cookieSecure,
-    path: "/"
+    path: config.basePath || "/"
   });
 }
 
 function requireAuth(req, res, next) {
   if (!req.user) {
-    if (req.originalUrl.startsWith("/api/")) {
+    const isApiRequest = req.originalUrl.startsWith("/api/") || req.originalUrl.startsWith(config.withBasePath("/api/"));
+    if (isApiRequest) {
       return res.status(401).json({ ok: false, error: "Authentication required." });
     }
-    return res.redirect("/login");
+    return res.redirect(config.withBasePath("/login"));
   }
   return next();
 }
