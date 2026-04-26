@@ -5,6 +5,32 @@ function toggleUploadMode(form) {
   }
 }
 
+function validateSessionDateOverride(value) {
+  if (!value) {
+    return;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error("Session date override must look like YYYY-MM-DD_HH-MM-SS.");
+  }
+}
+
+function resolveApiSessionsUrl() {
+  const current = new URL(window.location.href);
+  const pathname = current.pathname.replace(/\/+$/, "");
+  if (pathname.endsWith("/sessions/new")) {
+    return `${current.origin}${pathname.slice(0, -"/sessions/new".length)}/api/sessions`;
+  }
+  return `${current.origin}/api/sessions`;
+}
+
+function resolveRedirectTarget(target) {
+  try {
+    return new URL(String(target || ""), window.location.href).toString();
+  } catch (_error) {
+    return null;
+  }
+}
+
 async function fileToBase64(file) {
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
@@ -18,11 +44,14 @@ async function fileToBase64(file) {
 
 async function buildUploadPayload(form) {
   const mode = form.querySelector('input[name="mode"]:checked')?.value || "single";
+  const sessionDateOverride = form.elements.sessionDateOverride.value.trim();
+  validateSessionDateOverride(sessionDateOverride);
+
   const payload = {
     title: form.elements.title.value.trim(),
     notes: form.elements.notes.value.trim(),
     mode,
-    sessionDateOverride: form.elements.sessionDateOverride.value.trim(),
+    sessionDateOverride,
     uploads: []
   };
 
@@ -62,8 +91,7 @@ function setupUploadForm() {
   if (!form) {
     return;
   }
-  const basePath = document.body?.dataset.basePath || "";
-  const apiSessionsUrl = basePath ? `${basePath}/api/sessions` : "../api/sessions";
+  const apiSessionsUrl = resolveApiSessionsUrl();
   const status = form.querySelector("[data-upload-status]");
 
   toggleUploadMode(form);
@@ -85,13 +113,28 @@ function setupUploadForm() {
         },
         body: JSON.stringify(payload)
       });
-      const result = await response.json();
+      const bodyText = await response.text();
+      let result = {};
+      if (bodyText) {
+        try {
+          result = JSON.parse(bodyText);
+        } catch (_error) {
+          throw new Error("Server returned an unexpected response while saving the session.");
+        }
+      }
       if (!response.ok || !result.ok) {
         throw new Error(result.error || "The session could not be saved.");
       }
-      window.location.assign(result.redirectTo);
+      const redirectTarget = resolveRedirectTarget(result.redirectTo);
+      if (!redirectTarget) {
+        throw new Error("Session saved but redirect target was invalid.");
+      }
+      window.location.assign(redirectTarget);
     } catch (error) {
-      status.textContent = error.message;
+      const rawMessage = String(error?.message || "Unexpected error.");
+      status.textContent = rawMessage === "The string did not match the expected pattern."
+        ? "Browser rejected the request format. Refresh the page and try again."
+        : rawMessage;
     } finally {
       button.disabled = false;
     }
