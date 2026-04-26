@@ -396,7 +396,11 @@ function renderUploadPage({ user, modelInfo, error = "" }) {
             </label>
             <label>
               <span>Optional session date override</span>
-              <input name="sessionDateOverride" type="text" placeholder="2026-04-22_18-15-00" />
+              <div class="date-time-grid">
+                <input name="sessionDate" type="date" />
+                <input name="sessionTime" type="time" step="1" />
+              </div>
+              <small class="field-note">Leave both empty to use the timestamp found in the upload metadata.</small>
             </label>
 
             <div class="mode-switch">

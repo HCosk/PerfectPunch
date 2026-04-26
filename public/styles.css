@@ -322,6 +322,17 @@ button {
   gap: 8px;
 }
 
+.date-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .form-stack input,
 .form-stack select,
 .form-stack textarea {
@@ -682,6 +693,10 @@ button {
   }
 
   .summary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .date-time-grid {
     grid-template-columns: 1fr;
   }
 }

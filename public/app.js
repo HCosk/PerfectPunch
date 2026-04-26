@@ -5,13 +5,24 @@ function toggleUploadMode(form) {
   }
 }
 
-function validateSessionDateOverride(value) {
-  if (!value) {
-    return;
+function buildSessionDateOverride(dateValue, timeValue) {
+  if (!dateValue && !timeValue) {
+    return "";
   }
-  if (!/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/.test(value)) {
-    throw new Error("Session date override must look like YYYY-MM-DD_HH-MM-SS.");
+  if (!dateValue) {
+    throw new Error("Choose a date when setting an override time.");
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    throw new Error("Session date is invalid.");
+  }
+  if (!timeValue) {
+    return `${dateValue}_00-00-00`;
+  }
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(timeValue)) {
+    throw new Error("Session time is invalid.");
+  }
+  const fullTime = timeValue.length === 5 ? `${timeValue}:00` : timeValue;
+  return `${dateValue}_${fullTime.replace(/:/g, "-")}`;
 }
 
 function resolveApiSessionsUrl() {
@@ -44,8 +55,9 @@ async function fileToBase64(file) {
 
 async function buildUploadPayload(form) {
   const mode = form.querySelector('input[name="mode"]:checked')?.value || "single";
-  const sessionDateOverride = form.elements.sessionDateOverride.value.trim();
-  validateSessionDateOverride(sessionDateOverride);
+  const sessionDateValue = String(form.elements.sessionDate?.value || "").trim();
+  const sessionTimeValue = String(form.elements.sessionTime?.value || "").trim();
+  const sessionDateOverride = buildSessionDateOverride(sessionDateValue, sessionTimeValue);
 
   const payload = {
     title: form.elements.title.value.trim(),
