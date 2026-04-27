@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS recorded_sessions (
   user_id BIGINT UNSIGNED NOT NULL,
   title VARCHAR(255) NOT NULL,
   notes TEXT NULL,
+  is_favorite TINYINT(1) NOT NULL DEFAULT 0,
   upload_mode VARCHAR(16) NOT NULL,
   session_date VARCHAR(64) NULL,
   total_events INT NOT NULL DEFAULT 0,

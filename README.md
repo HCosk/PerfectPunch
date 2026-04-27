@@ -6,6 +6,8 @@ PerfectPunch is a boxing session analysis app with:
 - single-arm or dual-arm ZIP uploads
 - punch event analysis using a trained Python model
 - saved session history and progress-over-time stats
+- session compare, favorites, edit, delete, and CSV export tools
+- per-session event explorer for filtering punches by arm and label
 
 The web app is built with Node.js + Express + MySQL, and the model is run through a Python CLI bridge.
 
@@ -23,6 +25,14 @@ The web app is built with Node.js + Express + MySQL, and the model is run throug
 - `app/` - Python model pipeline and CLI
 - `database/schema.sql` - MySQL schema
 - `artifacts/current/` - trained model artifacts used at runtime
+
+## Current App Features
+
+- `Dashboard` with recent sessions, punch mix, and progress trend
+- `History` with search, filters, compare entry points, and CSV export
+- `Session detail` with arm breakdowns and event explorer
+- `Session actions` for favorite, edit, delete, and per-session CSV export
+- `Compare` view for side-by-side session summaries
 
 ## Prerequisites
 
@@ -95,6 +105,27 @@ Training is intentionally terminal-only (no admin training UI in the web app):
 python3 app/cli.py train
 ```
 
+Training data is read from the repo `data/` folder. Each training session should live in its
+own directory named like:
+
+```text
+data/
+  cross-2026-04-27_06-03-08/
+  jab-2026-04-27_06-05-19/
+  left_hook-2026-04-27_06-05-51/
+```
+
+Each session directory must contain at least:
+
+- `Accelerometer.csv`
+- `Gyroscope.csv`
+- `Orientation.csv`
+
+Optional files such as `Metadata.csv` and `Annotation.csv` can also be present.
+
+The label is derived from the directory name prefix before the timestamp, so directory naming
+matters.
+
 Check currently loaded model:
 
 ```bash
@@ -108,6 +139,9 @@ Artifacts are written to:
 - `artifacts/current/label_map.json`
 - `artifacts/current/normalization.json`
 - `artifacts/current/thresholds.json`
+
+Inference in the web app now saves punch labels and event times directly. The user-facing UI no
+longer uses confidence/needs-review states.
 
 ## Run the App Locally
 
@@ -123,6 +157,12 @@ Open:
 
 ```bash
 npm run check
+```
+
+Optional targeted pipeline tests:
+
+```bash
+python3 -m pytest tests/test_pipeline.py
 ```
 
 ## Deploy to Goldsmiths VM
@@ -200,3 +240,4 @@ If your course setup gives you a `/www/...` prefix instead, set `APP_BASE_PATH` 
 
 - `data/`, `storage/`, `node_modules/`, and `.env` are ignored by Git.
 - `artifacts/current` is committed so inference works after deploy without retraining on server.
+- If you retrain the model, restart the Node app so new artifacts are picked up cleanly.

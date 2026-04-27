@@ -7,6 +7,7 @@ const LABEL_NAMES = {
   right_uppercut: "Right uppercut",
   uncertain: "Uncertain"
 };
+const KNOWN_PUNCH_LABELS = Object.keys(LABEL_NAMES);
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -59,12 +60,14 @@ function pickTopPunch(summary) {
 }
 
 function averageConfidence(rows) {
-  const totalEvents = rows.reduce((sum, row) => sum + Number(row.total_events || 0), 0);
+  const totalEvents = rows.reduce((sum, row) => {
+    return sum + Number(row.total_events ?? row.totalEvents ?? 0);
+  }, 0);
   if (!totalEvents) {
     return 0;
   }
   return rows.reduce((sum, row) => {
-    return sum + Number(row.avg_confidence || 0) * Number(row.total_events || 0);
+    return sum + Number(row.avg_confidence ?? row.avgConfidence ?? 0) * Number(row.total_events ?? row.totalEvents ?? 0);
   }, 0) / totalEvents;
 }
 
@@ -105,8 +108,38 @@ function formatArmLabel(arm) {
   return arm === "left" ? "Left arm" : "Right arm";
 }
 
+function buildQueryString(values) {
+  const params = new URLSearchParams();
+  for (const [key, rawValue] of Object.entries(values || {})) {
+    if (rawValue === undefined || rawValue === null) {
+      continue;
+    }
+    const value = String(rawValue).trim();
+    if (!value) {
+      continue;
+    }
+    params.set(key, value);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function csvEscape(value) {
+  const normalized = String(value ?? "");
+  if (/[",\n]/.test(normalized)) {
+    return `"${normalized.replace(/"/g, "\"\"")}"`;
+  }
+  return normalized;
+}
+
+function toCsv(rows) {
+  return rows.map((row) => row.map((value) => csvEscape(value)).join(",")).join("\n");
+}
+
 module.exports = {
   averageConfidence,
+  buildQueryString,
+  csvEscape,
   escapeHtml,
   formatArmLabel,
   formatConfidence,
@@ -115,8 +148,10 @@ module.exports = {
   formatPercent,
   formatSeconds,
   humanizeLabel,
+  knownPunchLabels: KNOWN_PUNCH_LABELS,
   mergeSummaryCounts,
   pickTopPunch,
   safeJsonParse,
-  slugifyFilename
+  slugifyFilename,
+  toCsv
 };

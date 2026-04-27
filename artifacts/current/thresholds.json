@@ -1,4 +1,4 @@
 {
-  "min_confidence": 0.85,
-  "min_margin": 0.25
+  "min_confidence": 0.45,
+  "min_margin": 0.05
 }

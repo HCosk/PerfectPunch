@@ -71,7 +71,7 @@ def test_artifacts_reload_after_training(tmp_path: Path) -> None:
     assert reloaded.model_info()["trained"] is True
 
 
-def test_low_confidence_prediction_becomes_uncertain(tmp_path: Path) -> None:
+def test_prediction_uses_top_punch_label_without_confidence_gate(tmp_path: Path) -> None:
     artifact_dir = tmp_path / "artifacts"
     service = PunchModelService(DATA_DIR, artifact_dir)
     config = TrainConfig(max_epochs=1, early_stopping_patience=1, max_folds=1, positive_cap_per_session=10, final_epoch_cap=1)
@@ -79,12 +79,27 @@ def test_low_confidence_prediction_becomes_uncertain(tmp_path: Path) -> None:
     assert service.bundle is not None
 
     session = load_session(DATA_DIR / "jab1-2026-04-14_09-16-53")
-    service.bundle.thresholds["min_confidence"] = 0.95
-    service.bundle.thresholds["min_margin"] = 0.5
     probability = np.zeros(len(service.bundle.index_to_label), dtype=np.float32)
     probability[service.bundle.label_to_index["jab"]] = 0.7
     probability[service.bundle.label_to_index["cross"]] = 0.2
     result = service._prediction_from_probabilities(session, 200, probability)
 
+    assert result["label"] == "jab"
+    assert "status" not in result
+
+
+def test_background_prediction_becomes_uncertain(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "artifacts"
+    service = PunchModelService(DATA_DIR, artifact_dir)
+    config = TrainConfig(max_epochs=1, early_stopping_patience=1, max_folds=1, positive_cap_per_session=10, final_epoch_cap=1)
+    service.train(config)
+    assert service.bundle is not None
+
+    session = load_session(DATA_DIR / "jab1-2026-04-14_09-16-53")
+    probability = np.zeros(len(service.bundle.index_to_label), dtype=np.float32)
+    probability[service.bundle.label_to_index["background"]] = 0.9
+    probability[service.bundle.label_to_index["jab"]] = 0.1
+    result = service._prediction_from_probabilities(session, 200, probability)
+
     assert result["label"] == "uncertain"
-    assert result["status"] == "low_confidence"
+    assert "status" not in result

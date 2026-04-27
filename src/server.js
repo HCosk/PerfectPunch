@@ -17,19 +17,29 @@ const { getModelInfo } = require("./analyzer");
 const config = require("./config");
 const { initializeDatabase } = require("./db");
 const {
+  buildHistoryExportCsv,
+  buildSessionEventsCsv,
+  deleteRecordedSession,
   getDashboardData,
   getRecordedSessionDetail,
+  getSessionCompareData,
   listAllUserSessions,
-  persistUploadsAndAnalyze
+  normalizeHistoryFilters,
+  persistUploadsAndAnalyze,
+  toggleRecordedSessionFavorite,
+  updateRecordedSession
 } = require("./session-service");
 const {
   renderAuthPage,
+  renderComparePage,
   renderDashboardPage,
+  renderEditSessionPage,
   renderErrorPage,
   renderHistoryPage,
   renderSessionDetailPage,
   renderUploadPage
 } = require("./templates");
+const { slugifyFilename } = require("./utils");
 
 function asyncHandler(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -43,6 +53,33 @@ function getAppRedirectTarget(req, targetPath) {
   const sourceDir = path.posix.dirname(req.path || "/");
   const relativeTarget = path.posix.relative(sourceDir, normalizedTarget);
   return relativeTarget || ".";
+}
+
+function parseSessionId(rawValue) {
+  const parsed = Number.parseInt(String(rawValue || ""), 10);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    const error = new Error("Session id is invalid.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return parsed;
+}
+
+function resolveReturnTo(rawValue, fallbackPath) {
+  const value = String(rawValue || "").trim();
+  if (!value.startsWith("/")) {
+    return fallbackPath;
+  }
+  if (config.basePath) {
+    return value === config.basePath || value.startsWith(`${config.basePath}/`) ? value : fallbackPath;
+  }
+  return value;
+}
+
+function sendCsv(res, filename, content) {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(content);
 }
 
 async function ensureDirectories() {
@@ -169,8 +206,130 @@ function buildApp() {
     "/history",
     requireAuth,
     asyncHandler(async (req, res) => {
-      const sessions = await listAllUserSessions(req.user.id);
-      res.send(renderHistoryPage({ user: req.user, sessions }));
+      const filters = normalizeHistoryFilters(req.query || {});
+      const sessions = await listAllUserSessions(req.user.id, { filters });
+      res.send(renderHistoryPage({ user: req.user, sessions, filters }));
+    })
+  );
+
+  app.get(
+    "/history/export.csv",
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const filters = normalizeHistoryFilters(req.query || {});
+      const sessions = await listAllUserSessions(req.user.id, { filters });
+      const content = buildHistoryExportCsv(sessions);
+      sendCsv(res, `perfectpunch-history-${new Date().toISOString().slice(0, 10)}.csv`, content);
+    })
+  );
+
+  app.get(
+    "/compare",
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const firstSessionId = Number.parseInt(String(req.query.first || ""), 10) || null;
+      const secondSessionId = Number.parseInt(String(req.query.second || ""), 10) || null;
+      const compareData = await getSessionCompareData(req.user.id, firstSessionId, secondSessionId);
+      res.send(renderComparePage({ user: req.user, ...compareData }));
+    })
+  );
+
+  app.get(
+    "/sessions/:id/edit",
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const sessionId = parseSessionId(req.params.id);
+      const session = await getRecordedSessionDetail(req.user.id, sessionId);
+      if (!session) {
+        return res.status(404).send(renderErrorPage({
+          title: "Session not found",
+          message: "That saved session does not exist for this user.",
+          user: req.user
+        }));
+      }
+      return res.send(renderEditSessionPage({ user: req.user, session }));
+    })
+  );
+
+  app.post(
+    "/sessions/:id/edit",
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const sessionId = parseSessionId(req.params.id);
+      const existingSession = await getRecordedSessionDetail(req.user.id, sessionId);
+      if (!existingSession) {
+        return res.status(404).send(renderErrorPage({
+          title: "Session not found",
+          message: "That saved session does not exist for this user.",
+          user: req.user
+        }));
+      }
+      try {
+        await updateRecordedSession(req.user.id, sessionId, req.body || {});
+        return res.redirect(config.withBasePath(`/sessions/${sessionId}`));
+      } catch (error) {
+        const viewModel = {
+          ...existingSession,
+          title: req.body.title,
+          notes: req.body.notes,
+          is_favorite: req.body.isFavorite === "on"
+        };
+        return res.status(400).send(renderEditSessionPage({ user: req.user, session: viewModel, error: error.message }));
+      }
+    })
+  );
+
+  app.post(
+    "/sessions/:id/favorite",
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const sessionId = parseSessionId(req.params.id);
+      const favoriteValue = await toggleRecordedSessionFavorite(req.user.id, sessionId);
+      if (favoriteValue === null) {
+        return res.status(404).send(renderErrorPage({
+          title: "Session not found",
+          message: "That saved session does not exist for this user.",
+          user: req.user
+        }));
+      }
+      const fallbackPath = config.withBasePath(`/sessions/${sessionId}`);
+      const returnTo = resolveReturnTo(req.body.returnTo, fallbackPath);
+      return res.redirect(returnTo);
+    })
+  );
+
+  app.post(
+    "/sessions/:id/delete",
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const sessionId = parseSessionId(req.params.id);
+      const deleted = await deleteRecordedSession(req.user.id, sessionId);
+      if (!deleted) {
+        return res.status(404).send(renderErrorPage({
+          title: "Session not found",
+          message: "That saved session does not exist for this user.",
+          user: req.user
+        }));
+      }
+      return res.redirect(config.withBasePath("/history"));
+    })
+  );
+
+  app.get(
+    "/sessions/:id/export.csv",
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const sessionId = parseSessionId(req.params.id);
+      const session = await getRecordedSessionDetail(req.user.id, sessionId);
+      if (!session) {
+        return res.status(404).send(renderErrorPage({
+          title: "Session not found",
+          message: "That saved session does not exist for this user.",
+          user: req.user
+        }));
+      }
+      const content = buildSessionEventsCsv(session);
+      sendCsv(res, `${slugifyFilename(session.title || `session-${sessionId}`)}-events.csv`, content);
     })
   );
 
@@ -178,7 +337,7 @@ function buildApp() {
     "/sessions/:id",
     requireAuth,
     asyncHandler(async (req, res) => {
-      const session = await getRecordedSessionDetail(req.user.id, Number(req.params.id));
+      const session = await getRecordedSessionDetail(req.user.id, parseSessionId(req.params.id));
       if (!session) {
         return res.status(404).send(renderErrorPage({
           title: "Session not found",

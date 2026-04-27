@@ -7,6 +7,23 @@ const config = require("./config");
 
 let pool;
 
+async function ensureColumn(activePool, tableName, columnName, definitionSql) {
+  const [rows] = await activePool.query(`SHOW COLUMNS FROM \`${tableName}\` LIKE ?`, [columnName]);
+  if (rows.length) {
+    return;
+  }
+  await activePool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN ${definitionSql}`);
+}
+
+async function ensureSchemaUpgrades(activePool) {
+  await ensureColumn(
+    activePool,
+    "recorded_sessions",
+    "is_favorite",
+    "`is_favorite` TINYINT(1) NOT NULL DEFAULT 0 AFTER `notes`"
+  );
+}
+
 async function getPool() {
   if (!pool) {
     pool = mysql.createPool(config.mysql);
@@ -19,6 +36,7 @@ async function initializeDatabase() {
   const schemaPath = path.join(config.rootDir, "database", "schema.sql");
   const schemaSql = await fs.readFile(schemaPath, "utf8");
   await activePool.query(schemaSql);
+  await ensureSchemaUpgrades(activePool);
   return activePool;
 }
 

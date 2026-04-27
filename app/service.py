@@ -261,7 +261,7 @@ class PunchModelService:
             "duration_sec": round(session.duration_sec, 3),
             "model_version": self.bundle.model_version,
             "summary_counts": dict(summary_counts),
-            "events": merged_events,
+            "events": self._public_events(merged_events),
         }
 
     def analyze_zip(self, payload: bytes, session_date_override: str | None = None) -> dict[str, Any]:
@@ -597,25 +597,22 @@ class PunchModelService:
         assert self.bundle is not None
         sorted_indices = np.argsort(probability)
         top_index = int(sorted_indices[-1])
-        second_prob = float(probability[sorted_indices[-2]]) if probability.size > 1 else 0.0
         top_prob = float(probability[top_index])
-        margin = top_prob - second_prob
         predicted_label = self.bundle.index_to_label[top_index]
-        threshold_prob = self.bundle.thresholds.get("min_confidence", 0.55)
-        threshold_margin = self.bundle.thresholds.get("min_margin", 0.08)
-
-        if predicted_label == BACKGROUND_LABEL or top_prob < threshold_prob or margin < threshold_margin:
-            label = "uncertain"
-            status = "low_confidence"
-        else:
-            label = predicted_label
-            status = "ok"
         return {
             "time_sec": round(float(session.time[centre_index]), 3),
-            "label": label,
+            "label": "uncertain" if predicted_label == BACKGROUND_LABEL else predicted_label,
             "confidence": round(top_prob, 4),
-            "status": status,
         }
+
+    def _public_events(self, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                "time_sec": event["time_sec"],
+                "label": event["label"],
+            }
+            for event in events
+        ]
 
     def _merge_predictions(self, predictions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not predictions:
