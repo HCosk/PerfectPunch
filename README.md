@@ -165,15 +165,11 @@ Optional targeted pipeline tests:
 python3 -m pytest tests/test_pipeline.py
 ```
 
-## Deploy to Goldsmiths VM
+## Local Deployment
 
-1. SSH into your VM:
+Use this when you want to run PerfectPunch as a normal local service on your own machine.
 
-```bash
-ssh -t YOUR_GOLDSMITHS_USERNAME@igor.gold.ac.uk myserver ssh YOUR_SERVER_ID
-```
-
-2. Clone and install:
+1. Clone and install:
 
 ```bash
 git clone https://github.com/HCosk/PerfectPunch.git
@@ -186,20 +182,22 @@ python3 -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-3. Set VM `.env` values (important):
+2. Set local `.env` values:
 
 ```env
-PORT=8000
-APP_BASE_PATH=/usr/YOUR_SERVER_ID
+PORT=3000
+APP_BASE_PATH=
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=perfectpunch
 DB_PASSWORD=your_password
 DB_NAME=perfectpunch
-PYTHON_BIN=/home/YOUR_VM_USER/PerfectPunch/.venv/bin/python3
+PYTHON_BIN=/absolute/path/to/PerfectPunch/.venv/bin/python3
 ```
 
-4. Create/import DB on VM:
+Leave `APP_BASE_PATH` empty for normal local use. Only set it if you are mounting the app behind a reverse proxy under a sub-path.
+
+3. Create/import the database:
 
 ```bash
 mysql -u root -p
@@ -217,27 +215,42 @@ EXIT;
 mysql -u perfectpunch -p perfectpunch < database/schema.sql
 ```
 
-5. Start app:
+4. Start the app:
 
 ```bash
 npm start
 ```
 
-6. Open via proxy:
+5. Open it in your browser:
 
-`http://www.doc.gold.ac.uk/usr/YOUR_SERVER_ID`
+`http://localhost:3000`
 
-If your course setup gives you a `/www/...` prefix instead, set `APP_BASE_PATH` to that exact value (for example `/www/273`) and open the matching URL.
+If you want to access it from another device on the same network, use your machine's local IP address instead of `localhost`.
+
+### Optional Background Run
+
+If you want the app to keep running after you close the terminal:
+
+```bash
+nohup npm start > perfectpunch.log 2>&1 &
+```
+
+Then check it with:
+
+```bash
+tail -f perfectpunch.log
+```
 
 ## Common Issues
 
 - `Repository not found`: check exact repo URL spelling and remote with `git remote -v`.
 - `Access denied for user ...`: update DB credentials in `.env`.
 - `mysql: command not found`: use full MySQL client path or add it to `PATH`.
-- Proxy page not loading immediately after restart: wait up to about a minute.
+- `No module named pip`: install `python3-pip` and `python3-venv`, then recreate `.venv`.
+- `EADDRINUSE`: another process is already using the configured port. Stop the old process or change `PORT` in `.env`.
 
 ## Notes
 
 - `data/`, `storage/`, `node_modules/`, and `.env` are ignored by Git.
-- `artifacts/current` is committed so inference works after deploy without retraining on server.
+- `artifacts/current` is committed so inference works after local deployment without retraining first.
 - If you retrain the model, restart the Node app so new artifacts are picked up cleanly.
