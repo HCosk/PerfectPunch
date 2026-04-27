@@ -94,11 +94,6 @@ function renderAuthPage({ mode, error = "", values = {} }) {
             Track left and right arm uploads, store every recorded session, and come back to clean,
             coach-friendly history whenever you need it.
           </p>
-          <div class="hero-badges">
-            <span>MySQL-backed history</span>
-            <span>Single or dual arm uploads</span>
-            <span>Saved session stats</span>
-          </div>
         </article>
         <article class="card auth-card">
           <div class="card-head">
