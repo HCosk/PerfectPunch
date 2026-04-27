@@ -119,13 +119,6 @@ function renderAuthPage({ mode, error = "", values = {} }) {
                     <span>Email</span>
                     <input name="email" type="email" required value="${escapeHtml(values.email || "")}" />
                   </label>
-                  <label>
-                    <span>Preferred jab arm</span>
-                    <select name="jabArm">
-                      <option value="right" ${values.jabArm !== "left" ? "selected" : ""}>Right</option>
-                      <option value="left" ${values.jabArm === "left" ? "selected" : ""}>Left</option>
-                    </select>
-                  </label>
                 `
             }
             <label>
