@@ -94,8 +94,8 @@ async function ensureDirectories() {
   await fs.mkdir(config.uploadDir, { recursive: true });
 }
 
-function buildApp() {
-  // Wire all routes and middleware
+function buildCoreApp() {
+  // Wire all feature routes and middleware
   const app = express();
 
   // Base middleware setup
@@ -411,6 +411,37 @@ function buildApp() {
     );
   });
 
+  return app;
+}
+
+function buildApp() {
+  // Mount the app under the configured base path when running behind a proxy
+  const coreApp = buildCoreApp();
+
+  if (!config.basePath) {
+    return coreApp;
+  }
+
+  const app = express();
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok" });
+  });
+  app.get("/", (_req, res) => {
+    res.redirect(config.basePath);
+  });
+  app.use(config.basePath, coreApp);
+  app.use((req, res) => {
+    if (req.path.startsWith(`${config.basePath}/`) || req.path === config.basePath) {
+      return res.status(404).send(
+        renderErrorPage({
+          title: "Page not found",
+          message: "That page does not exist in this build.",
+          user: null
+        })
+      );
+    }
+    return res.redirect(config.basePath);
+  });
   return app;
 }
 
