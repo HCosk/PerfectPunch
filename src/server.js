@@ -1,3 +1,4 @@
+// Express server and HTTP routes
 const path = require("node:path");
 const fs = require("node:fs/promises");
 
@@ -42,20 +43,24 @@ const {
 const { slugifyFilename } = require("./utils");
 
 function asyncHandler(handler) {
+  // Forward async errors to Express
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 }
 
 function getAppRedirectTarget(req, targetPath) {
+  // Build a proxy-safe redirect target
   const normalizedTarget = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
   if (config.basePath) {
     return config.withBasePath(normalizedTarget);
   }
+  // Fall back to relative redirect
   const sourceDir = path.posix.dirname(req.path || "/");
   const relativeTarget = path.posix.relative(sourceDir, normalizedTarget);
   return relativeTarget || ".";
 }
 
 function parseSessionId(rawValue) {
+  // Validate session id from URL
   const parsed = Number.parseInt(String(rawValue || ""), 10);
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     const error = new Error("Session id is invalid.");
@@ -66,6 +71,7 @@ function parseSessionId(rawValue) {
 }
 
 function resolveReturnTo(rawValue, fallbackPath) {
+  // Block open-redirect return targets
   const value = String(rawValue || "").trim();
   if (!value.startsWith("/")) {
     return fallbackPath;
@@ -77,31 +83,38 @@ function resolveReturnTo(rawValue, fallbackPath) {
 }
 
 function sendCsv(res, filename, content) {
+  // Stream CSV content as attachment
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.send(content);
 }
 
 async function ensureDirectories() {
+  // Make sure upload dir exists
   await fs.mkdir(config.uploadDir, { recursive: true });
 }
 
 function buildApp() {
+  // Wire all routes and middleware
   const app = express();
 
+  // Base middleware setup
   app.use(express.urlencoded({ extended: false }));
   app.use(express.json({ limit: `${config.uploadPayloadLimitMb}mb` }));
   app.use("/assets", express.static(config.publicDir));
   app.use(attachCurrentUser);
 
+  // Health check endpoint
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
 
+  // Root redirects based on auth
   app.get("/", (req, res) => {
     res.redirect(req.user ? getAppRedirectTarget(req, "/dashboard") : getAppRedirectTarget(req, "/login"));
   });
 
+  // Login page renderer
   app.get("/login", (req, res) => {
     if (req.user) {
       return res.redirect(getAppRedirectTarget(req, "/dashboard"));
@@ -109,6 +122,7 @@ function buildApp() {
     return res.send(renderAuthPage({ mode: "login" }));
   });
 
+  // Login form submission
   app.post(
     "/login",
     asyncHandler(async (req, res) => {
@@ -117,12 +131,14 @@ function buildApp() {
       if (!user) {
         return res.status(401).send(renderAuthPage({ mode: "login", error: "Incorrect login details.", values }));
       }
+      // Issue session cookie on success
       const session = await createAuthSession(user.id);
       persistSessionCookie(res, session.token);
       return res.redirect(getAppRedirectTarget(req, "/dashboard"));
     })
   );
 
+  // Signup page renderer
   app.get("/signup", (req, res) => {
     if (req.user) {
       return res.redirect(getAppRedirectTarget(req, "/dashboard"));
@@ -130,6 +146,7 @@ function buildApp() {
     return res.send(renderAuthPage({ mode: "signup", values: { jabArm: "right" } }));
   });
 
+  // Signup form submission
   app.post(
     "/signup",
     asyncHandler(async (req, res) => {
@@ -138,6 +155,7 @@ function buildApp() {
         email: req.body.email || "",
         jabArm: req.body.jabArm || "right"
       };
+      // Compare both password fields
       if (req.body.password !== req.body.confirmPassword) {
         return res.status(400).send(renderAuthPage({ mode: "signup", error: "Passwords do not match.", values }));
       }
@@ -148,6 +166,7 @@ function buildApp() {
           password: req.body.password,
           jabArm: req.body.jabArm
         });
+        // Auto sign-in after signup
         const session = await createAuthSession(user.id);
         persistSessionCookie(res, session.token);
         return res.redirect(getAppRedirectTarget(req, "/dashboard"));
@@ -157,6 +176,7 @@ function buildApp() {
     })
   );
 
+  // Logout drops the session
   app.post(
     "/logout",
     asyncHandler(async (req, res) => {
@@ -166,6 +186,7 @@ function buildApp() {
     })
   );
 
+  // Dashboard summary route
   app.get(
     "/dashboard",
     requireAuth,
@@ -175,10 +196,12 @@ function buildApp() {
     })
   );
 
+  // Upload form route
   app.get(
     "/sessions/new",
     requireAuth,
     asyncHandler(async (req, res) => {
+      // Best-effort model status fetch
       let modelInfo;
       try {
         modelInfo = await getModelInfo();
@@ -189,6 +212,7 @@ function buildApp() {
     })
   );
 
+  // JSON API to save uploads
   app.post(
     "/api/sessions",
     requireAuth,
@@ -197,11 +221,13 @@ function buildApp() {
       res.json({
         ok: true,
         sessionId,
+        // Resolve redirect for proxied deploys
         redirectTo: config.basePath ? config.withBasePath(`/sessions/${sessionId}`) : `../sessions/${sessionId}`
       });
     })
   );
 
+  // History list page
   app.get(
     "/history",
     requireAuth,
@@ -212,6 +238,7 @@ function buildApp() {
     })
   );
 
+  // CSV history export
   app.get(
     "/history/export.csv",
     requireAuth,
@@ -223,6 +250,7 @@ function buildApp() {
     })
   );
 
+  // Side-by-side compare page
   app.get(
     "/compare",
     requireAuth,
@@ -234,6 +262,7 @@ function buildApp() {
     })
   );
 
+  // Edit form for a session
   app.get(
     "/sessions/:id/edit",
     requireAuth,
@@ -251,6 +280,7 @@ function buildApp() {
     })
   );
 
+  // Apply session edit changes
   app.post(
     "/sessions/:id/edit",
     requireAuth,
@@ -268,6 +298,7 @@ function buildApp() {
         await updateRecordedSession(req.user.id, sessionId, req.body || {});
         return res.redirect(config.withBasePath(`/sessions/${sessionId}`));
       } catch (error) {
+        // Re-render form with error message
         const viewModel = {
           ...existingSession,
           title: req.body.title,
@@ -279,6 +310,7 @@ function buildApp() {
     })
   );
 
+  // Toggle favorite flag
   app.post(
     "/sessions/:id/favorite",
     requireAuth,
@@ -298,6 +330,7 @@ function buildApp() {
     })
   );
 
+  // Delete a saved session
   app.post(
     "/sessions/:id/delete",
     requireAuth,
@@ -315,6 +348,7 @@ function buildApp() {
     })
   );
 
+  // Per-session events CSV export
   app.get(
     "/sessions/:id/export.csv",
     requireAuth,
@@ -333,6 +367,7 @@ function buildApp() {
     })
   );
 
+  // Session detail page
   app.get(
     "/sessions/:id",
     requireAuth,
@@ -349,6 +384,7 @@ function buildApp() {
     })
   );
 
+  // Catch-all 404 handler
   app.use((req, res) => {
     res.status(404).send(
       renderErrorPage({
@@ -359,6 +395,7 @@ function buildApp() {
     );
   });
 
+  // Top-level error handler
   app.use((error, req, res, _next) => {
     const status = error.statusCode || 500;
     const isApiRequest = req.path.startsWith("/api/") || req.originalUrl.startsWith(config.withBasePath("/api/"));
@@ -378,6 +415,7 @@ function buildApp() {
 }
 
 async function startServer() {
+  // Prepare disk and DB then listen
   await ensureDirectories();
   await initializeDatabase();
 

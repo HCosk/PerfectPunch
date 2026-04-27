@@ -1,3 +1,6 @@
+// Shared formatting and helper functions
+
+// Human-readable label names
 const LABEL_NAMES = {
   jab: "Jab",
   cross: "Cross",
@@ -7,9 +10,11 @@ const LABEL_NAMES = {
   right_uppercut: "Right uppercut",
   uncertain: "Uncertain"
 };
+// Punch labels recognised by app
 const KNOWN_PUNCH_LABELS = Object.keys(LABEL_NAMES);
 
 function escapeHtml(value) {
+  // Escape HTML special characters
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -19,10 +24,12 @@ function escapeHtml(value) {
 }
 
 function humanizeLabel(label) {
+  // Map label code to display name
   return LABEL_NAMES[label] || String(label || "").replaceAll("_", " ");
 }
 
 function safeJsonParse(value, fallback) {
+  // Parse JSON, falling back on errors
   if (!value) {
     return fallback;
   }
@@ -34,6 +41,7 @@ function safeJsonParse(value, fallback) {
 }
 
 function slugifyFilename(filename) {
+  // Lowercase safe filename slug
   return String(filename || "upload.zip")
     .toLowerCase()
     .replace(/[^a-z0-9.\-_]+/g, "-")
@@ -42,6 +50,7 @@ function slugifyFilename(filename) {
 }
 
 function mergeSummaryCounts(summaries) {
+  // Sum punch counts across summaries
   const merged = {};
   for (const summary of summaries) {
     for (const [label, rawCount] of Object.entries(summary || {})) {
@@ -53,6 +62,7 @@ function mergeSummaryCounts(summaries) {
 }
 
 function pickTopPunch(summary) {
+  // Most-thrown labelled punch
   const entries = Object.entries(summary || {})
     .filter(([label]) => label !== "uncertain")
     .sort((left, right) => Number(right[1]) - Number(left[1]));
@@ -60,6 +70,7 @@ function pickTopPunch(summary) {
 }
 
 function averageConfidence(rows) {
+  // Event-weighted average confidence
   const totalEvents = rows.reduce((sum, row) => {
     return sum + Number(row.total_events ?? row.totalEvents ?? 0);
   }, 0);
@@ -72,17 +83,21 @@ function averageConfidence(rows) {
 }
 
 function formatConfidence(value) {
+  // Three-decimal confidence number
   return Number(value || 0).toFixed(3);
 }
 
 function formatPercent(value) {
+  // Round ratio to whole percent
   return `${Math.round(Number(value || 0) * 100)}%`;
 }
 
 function formatDateLabel(value) {
+  // Human-readable session date
   if (!value) {
     return "Not recorded";
   }
+  // Already a custom session-date string
   if (typeof value === "string" && value.includes("_")) {
     return value.replace("_", " ");
   }
@@ -90,6 +105,7 @@ function formatDateLabel(value) {
   if (Number.isNaN(date.getTime())) {
     return String(value);
   }
+  // British medium date and time
   return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short"
@@ -97,18 +113,22 @@ function formatDateLabel(value) {
 }
 
 function formatCount(value) {
+  // Locale grouped integer count
   return Number(value || 0).toLocaleString("en-GB");
 }
 
 function formatSeconds(value) {
+  // Three-decimal second value
   return Number(value || 0).toFixed(3);
 }
 
 function formatArmLabel(arm) {
+  // Display label for an arm
   return arm === "left" ? "Left arm" : "Right arm";
 }
 
 function buildQueryString(values) {
+  // Build URL search string
   const params = new URLSearchParams();
   for (const [key, rawValue] of Object.entries(values || {})) {
     if (rawValue === undefined || rawValue === null) {
@@ -125,6 +145,7 @@ function buildQueryString(values) {
 }
 
 function csvEscape(value) {
+  // Quote CSV cells when needed
   const normalized = String(value ?? "");
   if (/[",\n]/.test(normalized)) {
     return `"${normalized.replace(/"/g, "\"\"")}"`;
@@ -133,6 +154,7 @@ function csvEscape(value) {
 }
 
 function toCsv(rows) {
+  // Render rows as CSV string
   return rows.map((row) => row.map((value) => csvEscape(value)).join(",")).join("\n");
 }
 

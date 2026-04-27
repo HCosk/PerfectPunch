@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 import numpy as np
 
 
+# Sensor sampling configuration constants
 SAMPLE_RATE_HZ = 100
 SAMPLE_INTERVAL_SEC = 1.0 / SAMPLE_RATE_HZ
 WINDOW_BEFORE_SEC = 0.25
@@ -22,6 +23,7 @@ MIN_EVENT_GAP_SEC = 0.35
 LABEL_SUFFIX_RE = re.compile(r"\d+$")
 RECORDING_TIME_FIELD = "recording time"
 
+# Required CSV files and headers
 REQUIRED_FILES: dict[str, tuple[str, ...]] = {
     "Accelerometer.csv": ("seconds_elapsed", "x", "y", "z"),
     "Gyroscope.csv": ("seconds_elapsed", "x", "y", "z"),
@@ -30,11 +32,13 @@ REQUIRED_FILES: dict[str, tuple[str, ...]] = {
 
 
 class SessionValidationError(ValueError):
+    # Raised on invalid session inputs
     pass
 
 
 @dataclass(slots=True)
 class SessionData:
+    # Aligned multi-channel session signals
     source_name: str
     session_date: str | None
     time: np.ndarray
@@ -42,12 +46,14 @@ class SessionData:
 
     @property
     def duration_sec(self) -> float:
+        # Total session length in seconds
         if self.time.size == 0:
             return 0.0
         return float(self.time[-1] - self.time[0])
 
 
 def derive_label_from_name(name: str) -> str:
+    # Extract punch label from folder name
     stem = name.split("-20", 1)[0]
     stem = LABEL_SUFFIX_RE.sub("", stem)
     normalized = stem.strip().lower().replace("-", "_").replace(" ", "_")
@@ -57,12 +63,14 @@ def derive_label_from_name(name: str) -> str:
 
 
 def validate_session_dir(session_dir: Path) -> None:
+    # Verify required CSV files exist
     if not session_dir.exists() or not session_dir.is_dir():
         raise SessionValidationError(f"Session directory not found: {session_dir}")
     for filename, required_headers in REQUIRED_FILES.items():
         path = session_dir / filename
         if not path.exists():
             raise SessionValidationError(f"Missing required file: {filename}")
+        # Check CSV headers are present
         with path.open(newline="") as handle:
             reader = csv.DictReader(handle)
             if reader.fieldnames is None:
@@ -75,6 +83,7 @@ def validate_session_dir(session_dir: Path) -> None:
 
 
 def _read_csv_columns(path: Path, columns: tuple[str, ...]) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    # Read selected columns into numpy arrays
     values = {column: [] for column in columns}
     with path.open(newline="") as handle:
         reader = csv.DictReader(handle)
@@ -89,11 +98,13 @@ def _read_csv_columns(path: Path, columns: tuple[str, ...]) -> tuple[np.ndarray,
 
 
 def _interp_column(grid: np.ndarray, time: np.ndarray, values: np.ndarray, *, unwrap: bool = False) -> np.ndarray:
+    # Linear interp onto uniform grid
     series = np.unwrap(values.astype(np.float64)) if unwrap else values.astype(np.float64)
     return np.interp(grid, time, series).astype(np.float32)
 
 
 def _parse_metadata_recording_time(session_dir: Path) -> str | None:
+    # Read recording time from metadata
     metadata_path = session_dir / "Metadata.csv"
     if not metadata_path.exists():
         return None
@@ -106,19 +117,23 @@ def _parse_metadata_recording_time(session_dir: Path) -> str | None:
 
 
 def load_session(session_dir: Path, source_name: str | None = None) -> SessionData:
+    # Load and align all sensor channels
     validate_session_dir(session_dir)
     acc_time, acc_data = _read_csv_columns(session_dir / "Accelerometer.csv", REQUIRED_FILES["Accelerometer.csv"])
     gyr_time, gyr_data = _read_csv_columns(session_dir / "Gyroscope.csv", REQUIRED_FILES["Gyroscope.csv"])
     ori_time, ori_data = _read_csv_columns(session_dir / "Orientation.csv", REQUIRED_FILES["Orientation.csv"])
 
+    # Find common time range across sensors
     start_sec = max(float(acc_time[0]), float(gyr_time[0]), float(ori_time[0]))
     end_sec = min(float(acc_time[-1]), float(gyr_time[-1]), float(ori_time[-1]))
     if end_sec - start_sec < WINDOW_BEFORE_SEC + WINDOW_AFTER_SEC + 1.0:
         raise SessionValidationError("Session is too short after sensor alignment.")
 
+    # Build uniform 100Hz sampling grid
     sample_count = int(math.floor((end_sec - start_sec) * SAMPLE_RATE_HZ)) + 1
     grid = start_sec + np.arange(sample_count, dtype=np.float32) * SAMPLE_INTERVAL_SEC
 
+    # Resample each sensor axis
     acc_x = _interp_column(grid, acc_time, acc_data["x"])
     acc_y = _interp_column(grid, acc_time, acc_data["y"])
     acc_z = _interp_column(grid, acc_time, acc_data["z"])
@@ -129,8 +144,10 @@ def load_session(session_dir: Path, source_name: str | None = None) -> SessionDa
     pitch = _interp_column(grid, ori_time, ori_data["pitch"], unwrap=True)
     roll = _interp_column(grid, ori_time, ori_data["roll"], unwrap=True)
 
+    # Compute magnitude features
     acc_mag = np.linalg.norm(np.column_stack((acc_x, acc_y, acc_z)), axis=1).astype(np.float32)
     gyr_mag = np.linalg.norm(np.column_stack((gyr_x, gyr_y, gyr_z)), axis=1).astype(np.float32)
+    # Stack channels into single array
     channels = np.column_stack(
         (acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, yaw, pitch, roll, acc_mag, gyr_mag)
     ).astype(np.float32)
@@ -144,6 +161,7 @@ def load_session(session_dir: Path, source_name: str | None = None) -> SessionDa
 
 
 def load_training_sessions(data_dir: Path) -> list[tuple[str, SessionData]]:
+    # Load all labelled training sessions
     sessions: list[tuple[str, SessionData]] = []
     for session_dir in sorted(path for path in data_dir.iterdir() if path.is_dir()):
         label = derive_label_from_name(session_dir.name)
@@ -154,6 +172,7 @@ def load_training_sessions(data_dir: Path) -> list[tuple[str, SessionData]]:
 
 
 def _locate_session_root(base_dir: Path) -> Path:
+    # Find session root inside extracted ZIP
     entries = [entry for entry in base_dir.iterdir() if not entry.name.startswith("__MACOSX")]
     if not entries:
         raise SessionValidationError("Uploaded ZIP is empty.")
@@ -163,7 +182,9 @@ def _locate_session_root(base_dir: Path) -> Path:
 
 
 def extract_single_session_zip(payload: bytes, destination_dir: Path) -> Path:
+    # Safely extract uploaded session ZIP
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        # Block path traversal entries
         for member in archive.infolist():
             member_path = Path(member.filename)
             if member_path.is_absolute() or ".." in member_path.parts:
@@ -175,6 +196,7 @@ def extract_single_session_zip(payload: bytes, destination_dir: Path) -> Path:
 
 
 def load_session_from_zip_bytes(payload: bytes) -> SessionData:
+    # Load session directly from ZIP bytes
     with TemporaryDirectory() as tmp_dir:
         session_root = extract_single_session_zip(payload, Path(tmp_dir))
         return load_session(session_root, source_name=session_root.name)

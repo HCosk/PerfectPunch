@@ -9,16 +9,19 @@ from app.data import SessionValidationError, derive_label_from_name, load_sessio
 from app.service import PunchModelService, TrainConfig
 
 
+# Locate fixture data directory
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
 
 
 def test_derive_label_from_name() -> None:
+    # Strips suffix and timestamp tokens
     assert derive_label_from_name("jab1-2026-04-14_09-16-53") == "jab"
     assert derive_label_from_name("right_hook2-2026-04-15_16-41-32") == "right_hook"
 
 
 def test_validate_session_dir_rejects_missing_headers(tmp_path: Path) -> None:
+    # Build a malformed session directory
     session_dir = tmp_path / "broken"
     session_dir.mkdir()
     for name in ("Accelerometer.csv", "Gyroscope.csv", "Orientation.csv"):
@@ -26,11 +29,13 @@ def test_validate_session_dir_rejects_missing_headers(tmp_path: Path) -> None:
             writer = csv.writer(handle)
             writer.writerow(["seconds_elapsed", "x"])
             writer.writerow([0.0, 1.0])
+    # Overwrite with bad orientation headers
     with (session_dir / "Orientation.csv").open("w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(["seconds_elapsed", "yaw"])
         writer.writerow([0.0, 1.0])
 
+    # Expect a validation error
     try:
         validate_session_dir(session_dir)
     except SessionValidationError as exc:
@@ -40,6 +45,7 @@ def test_validate_session_dir_rejects_missing_headers(tmp_path: Path) -> None:
 
 
 def test_load_session_aligns_to_100hz_grid() -> None:
+    # Verify uniform sampling grid output
     session_dir = DATA_DIR / "jab1-2026-04-14_09-16-53"
     session = load_session(session_dir)
 
@@ -49,6 +55,7 @@ def test_load_session_aligns_to_100hz_grid() -> None:
 
 
 def test_detect_event_indices_returns_sorted_peaks(tmp_path: Path) -> None:
+    # Peaks come out sorted and spaced
     service = PunchModelService(DATA_DIR, tmp_path / "artifacts")
     session = load_session(DATA_DIR / "cross1-2026-04-14_09-58-23")
 
@@ -60,6 +67,7 @@ def test_detect_event_indices_returns_sorted_peaks(tmp_path: Path) -> None:
 
 
 def test_artifacts_reload_after_training(tmp_path: Path) -> None:
+    # Train then re-instantiate cleanly
     artifact_dir = tmp_path / "artifacts"
     service = PunchModelService(DATA_DIR, artifact_dir)
     config = TrainConfig(max_epochs=1, early_stopping_patience=1, max_folds=1, positive_cap_per_session=10, final_epoch_cap=1)
@@ -67,17 +75,20 @@ def test_artifacts_reload_after_training(tmp_path: Path) -> None:
 
     assert info["trained"] is True
 
+    # Fresh instance reads the artefacts
     reloaded = PunchModelService(DATA_DIR, artifact_dir)
     assert reloaded.model_info()["trained"] is True
 
 
 def test_prediction_uses_top_punch_label_without_confidence_gate(tmp_path: Path) -> None:
+    # Top class wins regardless of margin
     artifact_dir = tmp_path / "artifacts"
     service = PunchModelService(DATA_DIR, artifact_dir)
     config = TrainConfig(max_epochs=1, early_stopping_patience=1, max_folds=1, positive_cap_per_session=10, final_epoch_cap=1)
     service.train(config)
     assert service.bundle is not None
 
+    # Build a fake probability vector
     session = load_session(DATA_DIR / "jab1-2026-04-14_09-16-53")
     probability = np.zeros(len(service.bundle.index_to_label), dtype=np.float32)
     probability[service.bundle.label_to_index["jab"]] = 0.7
@@ -89,12 +100,14 @@ def test_prediction_uses_top_punch_label_without_confidence_gate(tmp_path: Path)
 
 
 def test_background_prediction_becomes_uncertain(tmp_path: Path) -> None:
+    # Background top class becomes uncertain
     artifact_dir = tmp_path / "artifacts"
     service = PunchModelService(DATA_DIR, artifact_dir)
     config = TrainConfig(max_epochs=1, early_stopping_patience=1, max_folds=1, positive_cap_per_session=10, final_epoch_cap=1)
     service.train(config)
     assert service.bundle is not None
 
+    # Background dominates the distribution
     session = load_session(DATA_DIR / "jab1-2026-04-14_09-16-53")
     probability = np.zeros(len(service.bundle.index_to_label), dtype=np.float32)
     probability[service.bundle.label_to_index["background"]] = 0.9

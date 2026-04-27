@@ -1,3 +1,4 @@
+// Server-side HTML page templates
 const config = require("./config");
 const {
   buildQueryString,
@@ -12,6 +13,7 @@ const {
 } = require("./utils");
 
 function renderLayout({ title, user, activePath = "", pageName = "app", content }) {
+  // Wrap content in shared HTML shell
   return `<!DOCTYPE html>
 <html lang="en-GB">
   <head>
@@ -33,6 +35,7 @@ function renderLayout({ title, user, activePath = "", pageName = "app", content 
 }
 
 function renderTopbar(user, activePath) {
+  // Render the signed-in navigation bar
   const links = [
     { path: "/dashboard", label: "Dashboard" },
     { path: "/sessions/new", label: "Record session" },
@@ -70,6 +73,7 @@ function renderTopbar(user, activePath) {
 }
 
 function renderAuthPage({ mode, error = "", values = {} }) {
+  // Login or signup form page
   const isLogin = mode === "login";
   const title = isLogin ? "Welcome back" : "Create your account";
   const submitLabel = isLogin ? "Sign in" : "Create account";
@@ -156,6 +160,7 @@ function renderAuthPage({ mode, error = "", values = {} }) {
 }
 
 function renderStatCard(label, value, note = "") {
+  // Single highlighted statistic card
   return `
     <article class="stat-card">
       <span>${escapeHtml(label)}</span>
@@ -166,6 +171,7 @@ function renderStatCard(label, value, note = "") {
 }
 
 function renderSummaryBreakdown(summary) {
+  // Bar chart of label counts
   const entries = Object.entries(summary || {})
     .filter(([, count]) => Number(count || 0) > 0)
     .sort((left, right) => Number(right[1]) - Number(left[1]));
@@ -192,14 +198,17 @@ function renderSummaryBreakdown(summary) {
 }
 
 function buildPolyline(points) {
+  // SVG polyline points string
   return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
 
 function renderProgressTrend(progressTrend) {
+  // Progress chart over recent sessions
   if (!progressTrend.length) {
     return `<div class="empty-state">Save a few sessions to see progress over time.</div>`;
   }
 
+  // Chart geometry constants
   const width = 720;
   const height = 260;
   const padding = 34;
@@ -208,6 +217,7 @@ function renderProgressTrend(progressTrend) {
   const maxEvents = Math.max(1, ...progressTrend.map((point) => point.totalEvents));
   const steps = Math.max(1, progressTrend.length - 1);
 
+  // Coordinate mappers for chart values
   const xFor = (index) => padding + (index / steps) * chartWidth;
   const eventYFor = (value) => padding + chartHeight - (Number(value || 0) / maxEvents) * chartHeight;
   const rateYFor = (value) => padding + chartHeight - Number(value || 0) * chartHeight;
@@ -256,10 +266,12 @@ function renderProgressTrend(progressTrend) {
 }
 
 function renderFavoritePill(isFavorite) {
+  // Tiny favorite chip badge
   return isFavorite ? `<span class="chip chip--favorite">Favorite</span>` : "";
 }
 
 function renderSessionActions(session) {
+  // Inline action buttons row
   return `
     <div class="button-row button-row--tight">
       <a class="ghost-button ghost-button--small" href="${config.withBasePath(`/sessions/${session.id}`)}">Details</a>
@@ -270,6 +282,7 @@ function renderSessionActions(session) {
 }
 
 function renderSessionsTable(sessions, options = {}) {
+  // Render the sessions list table
   const {
     emptyMessage = "No sessions recorded yet.",
     showActions = false
@@ -328,6 +341,7 @@ function renderSessionsTable(sessions, options = {}) {
 }
 
 function renderDashboardPage({ user, stats, sessions, combinedSummary, progressTrend }) {
+  // Build the main dashboard HTML
   return renderLayout({
     title: "PerfectPunch Dashboard",
     user,
@@ -388,6 +402,7 @@ function renderDashboardPage({ user, stats, sessions, combinedSummary, progressT
 }
 
 function renderUploadPage({ user, modelInfo, error = "" }) {
+  // Render the upload form page
   const modelStatus = modelInfo?.trained
     ? `Ready · model ${modelInfo.model_version || "current"}`
     : modelInfo?.error || "Model artefacts are not ready yet.";
@@ -497,6 +512,7 @@ function renderUploadPage({ user, modelInfo, error = "" }) {
 }
 
 function renderHistoryFilters(filters) {
+  // History filter card with form
   const exportHref = `${config.withBasePath("/history/export.csv")}${buildQueryString(filters)}`;
   return `
     <form class="card filter-card filter-form" method="get" action="${config.withBasePath("/history")}">
@@ -570,6 +586,7 @@ function renderHistoryFilters(filters) {
 }
 
 function renderHistoryPage({ user, sessions, filters }) {
+  // Render the history listing page
   return renderLayout({
     title: "Session History",
     user,
@@ -602,10 +619,12 @@ function renderHistoryPage({ user, sessions, filters }) {
 }
 
 function serializeForScript(value) {
+  // Safe JSON for inline script tags
   return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
 
 function renderArmComparison(session) {
+  // Compact per-arm comparison table
   if (!session.arms.length) {
     return `<div class="empty-state">No arm uploads were saved for this session.</div>`;
   }
@@ -639,6 +658,7 @@ function renderArmComparison(session) {
 }
 
 function renderExplorerLabelChips(session) {
+  // Filter chips for label types
   const chips = [
     `<button type="button" class="filter-chip filter-chip--active" data-label-filter="all">All events <span>${formatCount(session.allEvents.length)}</span></button>`
   ];
@@ -657,6 +677,7 @@ function renderExplorerLabelChips(session) {
 }
 
 function renderSessionExplorer(session) {
+  // Interactive event explorer panel
   const payload = {
     labels: knownPunchLabels,
     events: session.allEvents
@@ -707,6 +728,7 @@ function renderSessionExplorer(session) {
 }
 
 function renderArmPanel(armRecord, user) {
+  // Detail card for a single arm
   const jabMismatch = armRecord.arm !== user.jab_arm && Number(armRecord.summary.jab || 0) > 0;
 
   return `
@@ -760,6 +782,7 @@ function renderArmPanel(armRecord, user) {
 }
 
 function renderSessionActionPanel(session) {
+  // Hero action buttons for session
   const returnTo = config.withBasePath(`/sessions/${session.id}`);
   return `
     <div class="hero-actions">
@@ -778,6 +801,7 @@ function renderSessionActionPanel(session) {
 }
 
 function renderSessionDetailPage({ user, session }) {
+  // Render full session detail page
   return renderLayout({
     title: session.title,
     user,
@@ -834,6 +858,7 @@ function renderSessionDetailPage({ user, session }) {
 }
 
 function renderEditSessionPage({ user, session, error = "" }) {
+  // Edit form for session metadata
   return renderLayout({
     title: `Edit ${session.title}`,
     user,
@@ -881,6 +906,7 @@ function renderEditSessionPage({ user, session, error = "" }) {
 }
 
 function renderCompareSessionCard(snapshot, slotLabel) {
+  // Card showing one compare slot
   return `
     <article class="card compare-card">
       <div class="card-head">
@@ -901,6 +927,7 @@ function renderCompareSessionCard(snapshot, slotLabel) {
 }
 
 function renderCompareHighlights(highlights) {
+  // Winner highlights row layout
   return `
     <section class="mini-stat-grid">
       ${highlights
@@ -927,6 +954,7 @@ function renderCompareHighlights(highlights) {
 }
 
 function renderComparePage({ user, sessionOptions, selectedIds, comparison, error }) {
+  // Side-by-side compare desk page
   return renderLayout({
     title: "Compare Sessions",
     user,
@@ -1026,6 +1054,7 @@ function renderComparePage({ user, sessionOptions, selectedIds, comparison, erro
 }
 
 function renderErrorPage({ title, message, user = null }) {
+  // Friendly error page with CTA
   return renderLayout({
     title,
     user,

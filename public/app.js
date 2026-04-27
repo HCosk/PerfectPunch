@@ -1,3 +1,6 @@
+// Browser-side dashboard scripts
+
+// Display labels per punch type
 const LABEL_NAMES = {
   jab: "Jab",
   cross: "Cross",
@@ -8,6 +11,7 @@ const LABEL_NAMES = {
   uncertain: "Uncertain"
 };
 
+// Per-label colour swatches
 const LABEL_COLOURS = {
   jab: "#c85a34",
   cross: "#137b7b",
@@ -18,12 +22,14 @@ const LABEL_COLOURS = {
   uncertain: "#7d6f66"
 };
 
+// Stroke colour for arm marker
 const ARM_STROKES = {
   left: "#137b7b",
   right: "#922d11"
 };
 
 function toggleUploadMode(form) {
+  // Show panes for the chosen mode
   const mode = form.querySelector('input[name="mode"]:checked')?.value || "single";
   for (const pane of form.querySelectorAll("[data-mode-pane]")) {
     pane.hidden = pane.getAttribute("data-mode-pane") !== mode;
@@ -31,18 +37,21 @@ function toggleUploadMode(form) {
 }
 
 function buildSessionDateOverride(dateValue, timeValue) {
+  // Combine date and time inputs
   if (!dateValue && !timeValue) {
     return "";
   }
   if (!dateValue) {
     throw new Error("Choose a date when setting an override time.");
   }
+  // Validate the date format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
     throw new Error("Session date is invalid.");
   }
   if (!timeValue) {
     return `${dateValue}_00-00-00`;
   }
+  // Validate the time format
   if (!/^\d{2}:\d{2}(:\d{2})?$/.test(timeValue)) {
     throw new Error("Session time is invalid.");
   }
@@ -51,6 +60,7 @@ function buildSessionDateOverride(dateValue, timeValue) {
 }
 
 function resolveApiSessionsUrl() {
+  // Compute API URL behind base path
   const current = new URL(window.location.href);
   const pathname = current.pathname.replace(/\/+$/, "");
   if (pathname.endsWith("/sessions/new")) {
@@ -60,6 +70,7 @@ function resolveApiSessionsUrl() {
 }
 
 function resolveRedirectTarget(target) {
+  // Validate the server redirect URL
   try {
     return new URL(String(target || ""), window.location.href).toString();
   } catch (_error) {
@@ -68,8 +79,10 @@ function resolveRedirectTarget(target) {
 }
 
 async function fileToBase64(file) {
+  // Convert file bytes to base64
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
+  // Encode in chunks to avoid stack overflow
   const chunkSize = 0x8000;
   let binary = "";
   for (let index = 0; index < bytes.length; index += chunkSize) {
@@ -79,6 +92,7 @@ async function fileToBase64(file) {
 }
 
 async function buildUploadPayload(form) {
+  // Build JSON payload from form
   const mode = form.querySelector('input[name="mode"]:checked')?.value || "single";
   const sessionDateValue = String(form.elements.sessionDate?.value || "").trim();
   const sessionTimeValue = String(form.elements.sessionTime?.value || "").trim();
@@ -92,6 +106,7 @@ async function buildUploadPayload(form) {
     uploads: []
   };
 
+  // Single-arm submission path
   if (mode === "single") {
     const singleFile = form.elements.singleFile.files[0];
     if (!singleFile) {
@@ -105,6 +120,7 @@ async function buildUploadPayload(form) {
     return payload;
   }
 
+  // Dual-arm submission path
   const leftFile = form.elements.leftFile.files[0];
   const rightFile = form.elements.rightFile.files[0];
   if (!leftFile || !rightFile) {
@@ -124,6 +140,7 @@ async function buildUploadPayload(form) {
 }
 
 function setupUploadForm() {
+  // Wire up the upload form
   const form = document.querySelector("[data-upload-form]");
   if (!form) {
     return;
@@ -131,6 +148,7 @@ function setupUploadForm() {
   const apiSessionsUrl = resolveApiSessionsUrl();
   const status = form.querySelector("[data-upload-status]");
 
+  // Reflect default mode panes
   toggleUploadMode(form);
   for (const modeInput of form.querySelectorAll('input[name="mode"]')) {
     modeInput.addEventListener("change", () => toggleUploadMode(form));
@@ -142,6 +160,7 @@ function setupUploadForm() {
     button.disabled = true;
 
     try {
+      // Build payload and send to API
       const payload = await buildUploadPayload(form);
       const response = await fetch(apiSessionsUrl, {
         method: "POST",
@@ -150,6 +169,7 @@ function setupUploadForm() {
         },
         body: JSON.stringify(payload)
       });
+      // Read body text and try parsing
       const bodyText = await response.text();
       let result = {};
       if (bodyText) {
@@ -162,12 +182,14 @@ function setupUploadForm() {
       if (!response.ok || !result.ok) {
         throw new Error(result.error || "The session could not be saved.");
       }
+      // Validate redirect before navigating
       const redirectTarget = resolveRedirectTarget(result.redirectTo);
       if (!redirectTarget) {
         throw new Error("Session saved but redirect target was invalid.");
       }
       window.location.assign(redirectTarget);
     } catch (error) {
+      // Surface a friendly error message
       const rawMessage = String(error?.message || "Unexpected error.");
       status.textContent = rawMessage === "The string did not match the expected pattern."
         ? "Browser rejected the request format. Refresh the page and try again."
@@ -179,6 +201,7 @@ function setupUploadForm() {
 }
 
 function escapeHtml(value) {
+  // Escape HTML special characters
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -188,18 +211,22 @@ function escapeHtml(value) {
 }
 
 function formatLabel(label) {
+  // Map label code to display name
   return LABEL_NAMES[label] || String(label || "").replaceAll("_", " ");
 }
 
 function formatArm(arm) {
+  // Display label for an arm
   return arm === "left" ? "Left arm" : "Right arm";
 }
 
 function formatSeconds(value) {
+  // Three-decimal second value
   return Number(value || 0).toFixed(3);
 }
 
 function readExplorerPayload(root) {
+  // Read embedded JSON payload
   const script = root.querySelector("[data-session-explorer-data]");
   if (!script) {
     return null;
@@ -216,6 +243,7 @@ function readExplorerPayload(root) {
 }
 
 function getExplorerEvents(payload, state) {
+  // Apply current label and arm filters
   return payload.events.filter((event) => {
     if (state.label !== "all" && event.label !== state.label) {
       return false;
@@ -228,6 +256,7 @@ function getExplorerEvents(payload, state) {
 }
 
 function sortExplorerEvents(events, sortMode) {
+  // Sort events for the table view
   const sorted = [...events];
   switch (sortMode) {
     case "time_desc":
@@ -241,11 +270,13 @@ function sortExplorerEvents(events, sortMode) {
 }
 
 function renderExplorerMetrics(root, events) {
+  // Update mini-stat tiles for filters
   const container = root.querySelector("[data-explorer-metrics]");
   if (!container) {
     return;
   }
 
+  // Compute summary stats for cards
   const eventCount = events.length;
   const minTime = eventCount ? Math.min(...events.map((event) => Number(event.time_sec || 0))) : 0;
   const maxTime = eventCount ? Math.max(...events.map((event) => Number(event.time_sec || 0))) : 0;
@@ -281,24 +312,29 @@ function renderExplorerMetrics(root, events) {
 }
 
 function buildTimelineSvg(events, labels) {
+  // Build SVG event timeline
   const width = 1080;
   const leftPad = 120;
   const rightPad = 32;
   const topPad = 28;
   const laneGap = 54;
   const bottomPad = 44;
+  // Pick lanes from visible labels
   const laneLabels = labels.filter((label) => events.some((event) => event.label === label));
   const unknownLabels = [...new Set(events.map((event) => event.label))].filter((label) => !laneLabels.includes(label));
   const lanes = [...laneLabels, ...unknownLabels];
   const height = topPad + bottomPad + Math.max(1, lanes.length) * laneGap;
+  // Compute time span and helpers
   const minTime = Math.min(...events.map((event) => Number(event.time_sec || 0)));
   const maxTime = Math.max(...events.map((event) => Number(event.time_sec || 0)));
   const timeSpan = Math.max(0.001, maxTime - minTime);
   const plotWidth = width - leftPad - rightPad;
 
+  // Coordinate mappers for time and lane
   const xFor = (time) => leftPad + ((Number(time || 0) - minTime) / timeSpan) * plotWidth;
   const yFor = (label) => topPad + lanes.indexOf(label) * laneGap + laneGap / 2;
 
+  // Build per-lane label and gridline
   const laneLines = lanes
     .map((label) => `
       <g>
@@ -308,6 +344,7 @@ function buildTimelineSvg(events, labels) {
     `)
     .join("");
 
+  // X axis time tick marks
   const ticks = Array.from({ length: 5 }, (_, index) => {
     const ratio = index / 4;
     const time = minTime + timeSpan * ratio;
@@ -320,6 +357,7 @@ function buildTimelineSvg(events, labels) {
     `;
   }).join("");
 
+  // Render dot per event
   const eventDots = events
     .map((event) => {
       const fill = LABEL_COLOURS[event.label] || "#ba8d38";
@@ -348,6 +386,7 @@ function buildTimelineSvg(events, labels) {
 }
 
 function renderExplorerTimeline(root, payload, events) {
+  // Inject timeline SVG into DOM
   const container = root.querySelector("[data-event-timeline]");
   if (!container) {
     return;
@@ -356,11 +395,13 @@ function renderExplorerTimeline(root, payload, events) {
     container.innerHTML = `<div class="timeline-empty">No events match the current filters.</div>`;
     return;
   }
+  // Sort events by time for plot
   const timeOrderedEvents = [...events].sort((left, right) => Number(left.time_sec) - Number(right.time_sec));
   container.innerHTML = buildTimelineSvg(timeOrderedEvents, payload.labels || []);
 }
 
 function renderExplorerTable(root, events) {
+  // Render the event table view
   const meta = root.querySelector("[data-explorer-meta]");
   const container = root.querySelector("[data-event-table]");
   if (!container || !meta) {
@@ -374,6 +415,7 @@ function renderExplorerTable(root, events) {
 
   meta.textContent = `${events.length} events visible.`;
 
+  // Build one row per event
   const rows = events
     .map((event, index) => `
       <tr>
@@ -403,6 +445,7 @@ function renderExplorerTable(root, events) {
 }
 
 function renderExplorer(root, payload, state) {
+  // Refresh all explorer panes
   const filteredEvents = getExplorerEvents(payload, state);
   const tableEvents = sortExplorerEvents(filteredEvents, state.sortMode);
   renderExplorerMetrics(root, filteredEvents);
@@ -411,18 +454,21 @@ function renderExplorer(root, payload, state) {
 }
 
 function setActiveLabelChip(root, label) {
+  // Mark active chip in toolbar
   for (const chip of root.querySelectorAll("[data-label-filter]")) {
     chip.classList.toggle("filter-chip--active", chip.getAttribute("data-label-filter") === label);
   }
 }
 
 function setupSessionExplorer() {
+  // Wire up each explorer block
   for (const root of document.querySelectorAll("[data-session-explorer]")) {
     const payload = readExplorerPayload(root);
     if (!payload) {
       continue;
     }
 
+    // Initial filter and sort state
     const state = {
       label: "all",
       arm: "all",
@@ -432,6 +478,7 @@ function setupSessionExplorer() {
     const armSelect = root.querySelector("[data-arm-filter]");
     const sortSelect = root.querySelector("[data-sort-filter]");
 
+    // Click handler for label chips
     root.querySelector("[data-session-labels]")?.addEventListener("click", (event) => {
       const chip = event.target.closest("[data-label-filter]");
       if (!chip) {
@@ -442,11 +489,13 @@ function setupSessionExplorer() {
       renderExplorer(root, payload, state);
     });
 
+    // Arm dropdown updates filter
     armSelect?.addEventListener("change", (event) => {
       state.arm = event.target.value || "all";
       renderExplorer(root, payload, state);
     });
 
+    // Sort dropdown updates table
     sortSelect?.addEventListener("change", (event) => {
       state.sortMode = event.target.value || "time_asc";
       renderExplorer(root, payload, state);
@@ -457,6 +506,7 @@ function setupSessionExplorer() {
   }
 }
 
+// Boot scripts on DOM ready
 document.addEventListener("DOMContentLoaded", () => {
   setupUploadForm();
   setupSessionExplorer();

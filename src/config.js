@@ -1,14 +1,18 @@
+// App configuration loaded from env
 const path = require("node:path");
 require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 
+// Project root directory
 const rootDir = path.resolve(__dirname, "..");
 
 function readInteger(value, fallback) {
+  // Parse integer with safe fallback
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function readBoolean(value, fallback = false) {
+  // Parse boolean from env string
   if (value === undefined) {
     return fallback;
   }
@@ -16,6 +20,7 @@ function readBoolean(value, fallback = false) {
 }
 
 function readBasePath(value) {
+  // Normalise optional reverse-proxy prefix
   const raw = String(value || "").trim();
   if (!raw || raw === "/") {
     return "";
@@ -24,9 +29,11 @@ function readBasePath(value) {
   return withLeadingSlash.replace(/\/+$/, "");
 }
 
+// Computed once at startup
 const basePath = readBasePath(process.env.APP_BASE_PATH);
 
 function withBasePath(routePath) {
+  // Prefix a route with base path
   const normalizedPath = routePath.startsWith("/") ? routePath : `/${routePath}`;
   return `${basePath}${normalizedPath}`;
 }
@@ -35,16 +42,20 @@ module.exports = {
   rootDir,
   basePath,
   withBasePath,
+  // Server and storage paths
   port: readInteger(process.env.PORT, 3000),
   publicDir: path.join(rootDir, "public"),
   storageDir: path.join(rootDir, "storage"),
   uploadDir: path.join(rootDir, "storage", "uploads"),
+  // Python analyzer location
   pythonBin: process.env.PYTHON_BIN || "python3",
   pythonCliPath: path.join(rootDir, "app", "cli.py"),
+  // Cookie and session settings
   cookieName: process.env.SESSION_COOKIE_NAME || "perfectpunch_session",
   cookieSecure: readBoolean(process.env.SESSION_COOKIE_SECURE, false),
   cookieMaxAgeMs: readInteger(process.env.SESSION_DAYS, 30) * 24 * 60 * 60 * 1000,
   uploadPayloadLimitMb: readInteger(process.env.UPLOAD_PAYLOAD_LIMIT_MB, 80),
+  // MySQL connection pool config
   mysql: {
     host: process.env.DB_HOST || "127.0.0.1",
     port: readInteger(process.env.DB_PORT, 3306),

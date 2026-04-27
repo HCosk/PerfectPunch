@@ -1,3 +1,4 @@
+// Persisted session storage and queries
 const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -16,7 +17,9 @@ const {
   toCsv
 } = require("./utils");
 
+// Allowed history sort options
 const HISTORY_SORTS = new Set(["date_desc", "date_asc", "events_desc", "title_asc"]);
+// Per-arm label remapping table
 const ARM_LABEL_MAP = {
   left: {
     cross: "jab",
@@ -30,12 +33,14 @@ const ARM_LABEL_MAP = {
   }
 };
 function validateUploadPayload(payload) {
+  // Sanitise upload form payload
   const title = String(payload.title || "").trim() || `Session ${new Date().toISOString().slice(0, 10)}`;
   const notes = String(payload.notes || "").trim();
   const mode = payload.mode === "dual" ? "dual" : "single";
   const sessionDateOverride = String(payload.sessionDateOverride || "").trim() || null;
   const uploads = Array.isArray(payload.uploads) ? payload.uploads : [];
 
+  // Enforce upload counts per mode
   if (mode === "single" && uploads.length !== 1) {
     throw new Error("Single-arm uploads need exactly one ZIP file.");
   }
@@ -43,6 +48,7 @@ function validateUploadPayload(payload) {
     throw new Error("Dual-arm uploads need one left ZIP and one right ZIP.");
   }
 
+  // Validate each upload entry
   const seenArms = new Set();
   const normalizedUploads = uploads.map((upload) => {
     const arm = upload.arm === "left" ? "left" : upload.arm === "right" ? "right" : null;
@@ -69,6 +75,7 @@ function validateUploadPayload(payload) {
 }
 
 function normalizeEventLabelsForArm(events, arm) {
+  // Remap labels for the chosen arm
   const labelMap = ARM_LABEL_MAP[arm] || {};
   return (Array.isArray(events) ? events : []).map((event) => {
     const label = String(event.label || "uncertain");
@@ -80,9 +87,11 @@ function normalizeEventLabelsForArm(events, arm) {
 }
 
 function summariseEvents(events) {
+  // Count totals and uncertain events
   const totalEvents = events.length;
   const uncertainEvents = events.filter((event) => event.label === "uncertain").length;
 
+  // Tally events by label
   const summaryCounts = events.reduce((counts, event) => {
     const label = String(event.label || "uncertain");
     counts[label] = (counts[label] || 0) + 1;
@@ -98,6 +107,7 @@ function summariseEvents(events) {
 }
 
 function getSessionTimestampExpression(alias = "recorded_sessions") {
+  // SQL expression resolving session timestamp
   return `COALESCE(
     STR_TO_DATE(${alias}.session_date, '%Y-%m-%d_%H-%i-%s'),
     STR_TO_DATE(${alias}.session_date, '%Y-%m-%d %H:%i:%s'),
@@ -106,10 +116,12 @@ function getSessionTimestampExpression(alias = "recorded_sessions") {
 }
 
 function isValidDateInput(value) {
+  // Accept ISO yyyy-mm-dd dates only
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
 }
 
 function normalizeHistoryFilters(filters = {}) {
+  // Sanitise history filter inputs
   const favorite = filters.favorite === "only" ? "only" : filters.favorite === "exclude" ? "exclude" : "all";
   return {
     search: String(filters.search || "").trim(),
@@ -124,15 +136,18 @@ function normalizeHistoryFilters(filters = {}) {
 }
 
 function buildHistoryWhereSql(filters, params, alias = "recorded_sessions") {
+  // Compose WHERE clauses for filters
   const clauses = [`${alias}.user_id = ?`];
   const sessionTimestampExpr = getSessionTimestampExpression(alias);
 
+  // Free-text search across title and notes
   if (filters.search) {
     const searchPattern = `%${filters.search}%`;
     clauses.push(`(${alias}.title LIKE ? OR COALESCE(${alias}.notes, '') LIKE ?)`);
     params.push(searchPattern, searchPattern);
   }
 
+  // Filter by uploaded arm
   if (filters.arm) {
     clauses.push(
       `EXISTS (
@@ -145,22 +160,26 @@ function buildHistoryWhereSql(filters, params, alias = "recorded_sessions") {
     params.push(filters.arm);
   }
 
+  // Filter by single/dual upload mode
   if (filters.mode) {
     clauses.push(`${alias}.upload_mode = ?`);
     params.push(filters.mode);
   }
 
+  // Favorite filter selection
   if (filters.favorite === "only") {
     clauses.push(`${alias}.is_favorite = 1`);
   } else if (filters.favorite === "exclude") {
     clauses.push(`${alias}.is_favorite = 0`);
   }
 
+  // Filter by detected punch label
   if (filters.punchLabel) {
     clauses.push(`${alias}.summary_json LIKE ?`);
     params.push(`%"${filters.punchLabel}":%`);
   }
 
+  // Inclusive date range filters
   if (filters.dateFrom) {
     clauses.push(`DATE(${sessionTimestampExpr}) >= ?`);
     params.push(filters.dateFrom);
@@ -175,6 +194,7 @@ function buildHistoryWhereSql(filters, params, alias = "recorded_sessions") {
 }
 
 function buildHistoryOrderSql(filters, alias = "recorded_sessions") {
+  // Build ORDER BY for chosen sort
   const sessionTimestampExpr = getSessionTimestampExpression(alias);
   switch (filters.sort) {
     case "date_asc":
@@ -190,12 +210,14 @@ function buildHistoryOrderSql(filters, alias = "recorded_sessions") {
 }
 
 function normalizeStoredSummary(summary) {
+  // Coerce summary counts to numbers
   return Object.fromEntries(
     Object.entries(summary || {}).map(([label, count]) => [label, Number(count || 0)])
   );
 }
 
 function normalizeStoredEvent(event, armRecord, index) {
+  // Normalise an event record for UI
   return {
     index: index + 1,
     arm: armRecord.arm,
@@ -208,10 +230,12 @@ function normalizeStoredEvent(event, armRecord, index) {
 }
 
 function countDistinctPunches(summary) {
+  // Count non-uncertain punch label types
   return Object.entries(summary || {}).filter(([label, count]) => label !== "uncertain" && Number(count || 0) > 0).length;
 }
 
 function buildLabelRows(firstSummary, secondSummary) {
+  // Build per-label rows for compare
   const union = new Set([...Object.keys(firstSummary || {}), ...Object.keys(secondSummary || {})]);
   const ordered = [
     ...knownPunchLabels.filter((label) => union.has(label)),
@@ -225,6 +249,7 @@ function buildLabelRows(firstSummary, secondSummary) {
 }
 
 function normalizeSessionListRow(row) {
+  // Shape DB row for list views
   const summary = normalizeStoredSummary(safeJsonParse(row.summary_json, {}));
   return {
     ...row,
@@ -246,17 +271,21 @@ function normalizeSessionListRow(row) {
 }
 
 async function persistUploadsAndAnalyze(user, payload) {
+  // Save uploads, analyze, and persist
   const normalized = validateUploadPayload(payload);
   const storageKey = crypto.randomUUID();
   const sessionDir = path.join(config.uploadDir, storageKey);
   await fs.mkdir(sessionDir, { recursive: true });
 
   try {
+    // Run analysis on each arm
     const analyses = await Promise.all(
       normalized.uploads.map(async (upload) => {
+        // Write base64 ZIP to disk
         const filePath = path.join(sessionDir, `${upload.arm}-${slugifyFilename(upload.name)}`);
         const rawBytes = Buffer.from(upload.data, "base64");
         await fs.writeFile(filePath, rawBytes);
+        // Run analyzer and remap labels
         const analysis = await analyzeZipFile(filePath, normalized.sessionDateOverride);
         const events = normalizeEventLabelsForArm(analysis.events, upload.arm);
         const summary = summariseEvents(events);
@@ -278,6 +307,7 @@ async function persistUploadsAndAnalyze(user, payload) {
       })
     );
 
+    // Aggregate stats across all arms
     const combinedSummary = mergeSummaryCounts(analyses.map((item) => item.summaryCounts));
     const totalEvents = analyses.reduce((sum, item) => sum + item.totalEvents, 0);
     const uncertainEvents = analyses.reduce((sum, item) => sum + item.uncertainEvents, 0);
@@ -285,6 +315,7 @@ async function persistUploadsAndAnalyze(user, payload) {
     const sessionDate = normalized.sessionDateOverride || analyses.find((item) => item.sessionDate)?.sessionDate || null;
     const modelVersion = analyses.find((item) => item.modelVersion)?.modelVersion || null;
 
+    // Persist session and arms atomically
     const sessionId = await withTransaction(async (connection) => {
       const [sessionResult] = await connection.execute(
         `INSERT INTO recorded_sessions
@@ -304,6 +335,7 @@ async function persistUploadsAndAnalyze(user, payload) {
         ]
       );
 
+      // Insert one row per uploaded arm
       for (const analysis of analyses) {
         await connection.execute(
           `INSERT INTO recorded_session_arms
@@ -332,12 +364,14 @@ async function persistUploadsAndAnalyze(user, payload) {
 
     return sessionId;
   } catch (error) {
+    // Clean up storage on failure
     await fs.rm(sessionDir, { recursive: true, force: true });
     throw error;
   }
 }
 
 async function listUserSessions(userId, options = {}) {
+  // Query and shape session list rows
   const filters = normalizeHistoryFilters(options.filters || {});
   const params = [userId];
   const whereClauses = buildHistoryWhereSql(filters, params);
@@ -368,6 +402,7 @@ async function listUserSessions(userId, options = {}) {
      ORDER BY ${orderSql}`
   ];
 
+  // Optional row limit
   if (options.limit) {
     clauses.push("LIMIT ?");
     params.push(Number(options.limit));
@@ -378,13 +413,17 @@ async function listUserSessions(userId, options = {}) {
 }
 
 async function getDashboardData(user) {
+  // Build payload for dashboard view
+  // Latest sessions for the dashboard
   const sessions = await listUserSessions(user.id, { limit: 6, filters: { sort: "date_desc" } });
+  // Total counts across all sessions
   const countRows = await query(
     `SELECT COUNT(*) AS sessionCount, COALESCE(SUM(is_favorite), 0) AS favoriteCount
      FROM recorded_sessions
      WHERE user_id = ?`,
     [user.id]
   );
+  // Recent sessions for trend chart
   const trendRows = await query(
     `SELECT
        id,
@@ -415,6 +454,7 @@ async function getDashboardData(user) {
      ) ASC, recent_sessions.created_at ASC`,
     [user.id]
   );
+  // Per-arm rollup across all sessions
   const armRows = await query(
     `SELECT
        recorded_session_arms.arm,
@@ -429,6 +469,7 @@ async function getDashboardData(user) {
     [user.id]
   );
 
+  // Aggregate summary across the user's arms
   const combinedSummary = mergeSummaryCounts(armRows.map((row) => safeJsonParse(row.summary_json, {})));
   const totalEvents = armRows.reduce((sum, row) => sum + Number(row.total_events || 0), 0);
   const uncertainEvents = armRows.reduce((sum, row) => sum + Number(row.uncertain_events || 0), 0);
@@ -467,10 +508,12 @@ async function getDashboardData(user) {
 }
 
 async function listAllUserSessions(userId, options = {}) {
+  // Public alias for the user list
   return listUserSessions(userId, options);
 }
 
 async function getRecordedSessionDetail(userId, sessionId) {
+  // Load full session detail bundle
   const sessionRows = await query(
     `SELECT
        id,
@@ -497,6 +540,7 @@ async function getRecordedSessionDetail(userId, sessionId) {
     return null;
   }
 
+  // Load all arm rows for session
   const armRows = await query(
     `SELECT
        id,
@@ -518,6 +562,7 @@ async function getRecordedSessionDetail(userId, sessionId) {
     [sessionId]
   );
 
+  // Normalise stored summary and arms
   const summary = normalizeStoredSummary(safeJsonParse(session.summary_json, {}));
   const arms = armRows.map((row) => {
     const armSummary = normalizeStoredSummary(safeJsonParse(row.summary_json, {}));
@@ -538,6 +583,7 @@ async function getRecordedSessionDetail(userId, sessionId) {
     };
   });
 
+  // Flatten and time-order all events
   const allEvents = arms
     .flatMap((armRecord) => armRecord.events)
     .sort((left, right) => Number(left.time_sec) - Number(right.time_sec) || left.index - right.index);
@@ -563,6 +609,7 @@ async function getRecordedSessionDetail(userId, sessionId) {
 }
 
 function buildComparisonHighlights(firstSnapshot, secondSnapshot) {
+  // Define the compared metric tiles
   const metrics = [
     {
       label: "More events",
@@ -584,6 +631,7 @@ function buildComparisonHighlights(firstSnapshot, secondSnapshot) {
     }
   ];
 
+  // Resolve winner for each metric
   return metrics.map((metric) => {
     const winner = metric.firstValue === metric.secondValue ? "tie" : metric.firstValue > metric.secondValue ? "first" : "second";
     return {
@@ -596,6 +644,7 @@ function buildComparisonHighlights(firstSnapshot, secondSnapshot) {
 }
 
 function buildSessionComparisonSnapshot(session) {
+  // Lightweight snapshot for compare desk
   return {
     id: session.id,
     title: session.title,
@@ -616,7 +665,9 @@ function buildSessionComparisonSnapshot(session) {
 }
 
 async function getSessionCompareData(userId, firstSessionId, secondSessionId) {
+  // Build view model for compare page
   const sessionOptions = await listUserSessions(userId, { filters: { sort: "date_desc" } });
+  // Empty selection returns dropdown only
   if (!firstSessionId || !secondSessionId) {
     return {
       sessionOptions,
@@ -626,6 +677,7 @@ async function getSessionCompareData(userId, firstSessionId, secondSessionId) {
     };
   }
 
+  // Same id is not a comparison
   if (firstSessionId === secondSessionId) {
     return {
       sessionOptions,
@@ -635,6 +687,7 @@ async function getSessionCompareData(userId, firstSessionId, secondSessionId) {
     };
   }
 
+  // Load both sessions in parallel
   const [firstSession, secondSession] = await Promise.all([
     getRecordedSessionDetail(userId, firstSessionId),
     getRecordedSessionDetail(userId, secondSessionId)
@@ -649,6 +702,7 @@ async function getSessionCompareData(userId, firstSessionId, secondSessionId) {
     };
   }
 
+  // Build snapshots and label rows
   const firstSnapshot = buildSessionComparisonSnapshot(firstSession);
   const secondSnapshot = buildSessionComparisonSnapshot(secondSession);
 
@@ -666,6 +720,7 @@ async function getSessionCompareData(userId, firstSessionId, secondSessionId) {
 }
 
 function normalizeSessionUpdatePayload(payload = {}) {
+  // Validate session edit form values
   const title = String(payload.title || "").trim();
   const notes = String(payload.notes || "").trim();
   if (!title) {
@@ -686,6 +741,7 @@ function normalizeSessionUpdatePayload(payload = {}) {
 }
 
 async function updateRecordedSession(userId, sessionId, payload) {
+  // Update session metadata fields
   const normalized = normalizeSessionUpdatePayload(payload);
   const result = await execute(
     `UPDATE recorded_sessions
@@ -700,6 +756,7 @@ async function updateRecordedSession(userId, sessionId, payload) {
 }
 
 async function toggleRecordedSessionFavorite(userId, sessionId) {
+  // Flip the favorite flag for session
   const rows = await query(
     "SELECT is_favorite FROM recorded_sessions WHERE user_id = ? AND id = ? LIMIT 1",
     [userId, sessionId]
@@ -717,6 +774,7 @@ async function toggleRecordedSessionFavorite(userId, sessionId) {
 }
 
 async function deleteRecordedSession(userId, sessionId) {
+  // Remove session and stored uploads
   const sessionRows = await query(
     "SELECT id, title FROM recorded_sessions WHERE user_id = ? AND id = ? LIMIT 1",
     [userId, sessionId]
@@ -726,6 +784,7 @@ async function deleteRecordedSession(userId, sessionId) {
     return null;
   }
 
+  // Collect storage paths for cleanup
   const armRows = await query(
     `SELECT stored_path
      FROM recorded_session_arms
@@ -734,6 +793,7 @@ async function deleteRecordedSession(userId, sessionId) {
   );
   const storageDirs = [...new Set(armRows.map((row) => path.dirname(path.join(config.rootDir, row.stored_path))))];
 
+  // Delete the database row first
   await withTransaction(async (connection) => {
     const [result] = await connection.execute(
       "DELETE FROM recorded_sessions WHERE user_id = ? AND id = ? LIMIT 1",
@@ -744,6 +804,7 @@ async function deleteRecordedSession(userId, sessionId) {
     }
   });
 
+  // Then remove on-disk artefacts
   await Promise.all(storageDirs.map((directory) => fs.rm(directory, { recursive: true, force: true })));
 
   return {
@@ -753,6 +814,7 @@ async function deleteRecordedSession(userId, sessionId) {
 }
 
 function buildHistoryExportCsv(sessions) {
+  // Build CSV rows for export
   const rows = [
     [
       "session_id",
@@ -789,6 +851,7 @@ function buildHistoryExportCsv(sessions) {
 }
 
 function buildSessionEventsCsv(session) {
+  // Per-event CSV with arm context
   const rows = [
     [
       "session_id",
@@ -805,7 +868,9 @@ function buildSessionEventsCsv(session) {
     ]
   ];
 
+  // Emit one row per event per arm
   for (const armRecord of session.arms) {
+    // Empty arms still get a placeholder row
     if (!armRecord.events.length) {
       rows.push([
         session.id,

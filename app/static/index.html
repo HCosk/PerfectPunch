@@ -1,9 +1,11 @@
 <!DOCTYPE html>
+<!-- Single-page punch analysis UI -->
 <html lang="en-GB">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PerfectPunch</title>
+    <!-- Plotly chart library -->
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;600&family=Fira+Sans:wght@400;500;600;700;800&display=swap");
@@ -685,7 +687,9 @@
     </style>
   </head>
   <body>
+    <!-- App layout shell -->
     <main class="shell">
+      <!-- Top hero banner -->
       <section class="masthead reveal">
         <img
           class="masthead-media"
@@ -704,7 +708,9 @@
         </div>
       </section>
 
+      <!-- Sidebar plus main content -->
       <section class="workspace reveal">
+        <!-- Left controls rail -->
         <aside class="control-rail">
           <section class="rail-block">
             <div class="rail-title">
@@ -714,6 +720,7 @@
             <div id="modelMeta" class="artefact-strip"></div>
           </section>
 
+          <!-- ZIP picker and analyse button -->
           <section class="rail-block">
             <div class="field-grid">
               <label class="field-label" for="zipFile">Session ZIP</label>
@@ -743,9 +750,12 @@
           </section>
         </aside>
 
+        <!-- Right results column -->
         <section class="content">
+          <!-- Top metric tiles -->
           <section id="metrics" class="metric-row"></section>
 
+          <!-- Punch timeline chart stage -->
           <section class="stage chart-stage">
             <div class="stage-head">
               <div>
@@ -770,6 +780,7 @@
             </div>
           </section>
 
+          <!-- Event log table stage -->
           <section class="stage table-stage">
             <div class="table-head">
               <div>
@@ -783,7 +794,9 @@
       </section>
     </main>
 
+    <!-- Single-page UI script -->
     <script>
+      // Per-label colour palette
       const labelPalette = {
         jab: { name: "Jab", colour: "#58d2c3" },
         cross: { name: "Cross", colour: "#d56e4f" },
@@ -794,6 +807,7 @@
         uncertain: { name: "Uncertain", colour: "#b88c3c" },
       };
 
+      // Display order of labels
       const labelOrder = [
         "jab",
         "cross",
@@ -804,6 +818,7 @@
         "uncertain",
       ];
 
+      // Mutable client UI state
       const state = {
         model: null,
         result: null,
@@ -811,6 +826,7 @@
         sortMode: "time-asc",
       };
 
+      // Cached DOM element handles
       const modelMeta = document.getElementById("modelMeta");
       const metrics = document.getElementById("metrics");
       const filters = document.getElementById("filters");
@@ -825,19 +841,23 @@
       const sortMode = document.getElementById("sortMode");
 
       function setBusy(message, busy) {
+        // Toggle button busy state
         statusEl.textContent = message;
         analyseButton.disabled = busy;
       }
 
       function formatPercentage(value) {
+        // Round ratio to whole percent
         return `${Math.round(value * 100)}%`;
       }
 
       function formatLabel(rawLabel) {
+        // Map label code to display name
         return labelPalette[rawLabel]?.name || rawLabel.replaceAll("_", " ");
       }
 
       function fetchModelInfo() {
+        // Load and render model status
         return fetch("/api/model")
           .then((response) => response.json())
           .then((payload) => {
@@ -847,6 +867,7 @@
       }
 
       function renderModel(payload) {
+        // Render model artefact chips
         const chips = [];
         chips.push(`<span class="artefact-chip"><strong>${payload.trained ? "Ready" : "Missing"}</strong></span>`);
         chips.push(`<span class="artefact-chip">Device <strong>${payload.device}</strong></span>`);
@@ -865,6 +886,7 @@
       }
 
       function buildMetricTiles(payload) {
+        // Build top metric tile cards
         const events = payload?.events || [];
         const uncertainCount = events.filter((event) => event.label === "uncertain").length;
         const averageConfidence =
@@ -910,6 +932,7 @@
       }
 
       function buildFilterChips(payload) {
+        // Build label filter chips
         if (!payload) {
           filters.innerHTML = "";
           return;
@@ -934,6 +957,7 @@
       }
 
       function getVisibleEvents() {
+        // Filter and sort active events
         if (!state.result) {
           return [];
         }
@@ -952,11 +976,13 @@
       }
 
       function renderTimeline(events) {
+        // Render the Plotly timeline chart
         if (!events.length) {
           document.getElementById("timeline").innerHTML = `<div class="empty-state">No events detected.</div>`;
           return;
         }
 
+        // Build a trace per label
         const eventTraces = labelOrder
           .filter((label) => events.some((event) => event.label === label))
           .map((label) => {
@@ -985,6 +1011,7 @@
             };
           });
 
+        // Confidence bar trace below
         const confidenceTrace = {
           type: "bar",
           x: events.map((event) => event.time_sec),
@@ -999,6 +1026,7 @@
           showlegend: false,
         };
 
+        // Mean confidence guide line
         const meanConfidence = events.reduce((sum, event) => sum + Number(event.confidence), 0) / events.length;
         const guideTrace = {
           type: "scatter",
@@ -1016,6 +1044,7 @@
           showlegend: false,
         };
 
+        // Render combined Plotly figure
         Plotly.react(
           "timeline",
           [...eventTraces, confidenceTrace, guideTrace],
@@ -1069,6 +1098,7 @@
       }
 
       function renderTable(events) {
+        // Render the event log table
         if (!events.length) {
           tableWrap.innerHTML = `<div class="empty-state">No events detected.</div>`;
           tableMeta.textContent = "No matching events for the current filter.";
@@ -1076,6 +1106,7 @@
         }
 
         tableMeta.textContent = `${events.length} events in the current view.`;
+        // Build one row per event
         const rows = events
           .map((event, index) => {
             const palette = labelPalette[event.label] || labelPalette.uncertain;
@@ -1115,6 +1146,7 @@
       }
 
       function renderExperience() {
+        // Refresh all UI sections
         buildMetricTiles(state.result);
         buildFilterChips(state.result);
         const visibleEvents = getVisibleEvents();
@@ -1123,6 +1155,7 @@
       }
 
       function renderAnalysis(payload) {
+        // Apply server analysis result
         state.result = payload;
         state.activeLabel = "all";
         state.sortMode = "time-asc";
@@ -1133,17 +1166,20 @@
       }
 
       function submitAnalysis() {
+        // Send ZIP to backend for analysis
         if (!zipInput.files.length) {
           statusEl.textContent = "Please choose a ZIP file.";
           return;
         }
 
+        // Build multipart upload payload
         const formData = new FormData();
         formData.append("file", zipInput.files[0]);
         if (sessionDateInput.value.trim()) {
           formData.append("session_date_override", sessionDateInput.value.trim());
         }
 
+        // POST file and parse response
         setBusy("Analysing ZIP...", true);
         fetch("/api/analyse", { method: "POST", body: formData })
           .then(async (response) => {
@@ -1162,12 +1198,15 @@
           });
       }
 
+      // Wire UI event handlers
       analyseButton.addEventListener("click", submitAnalysis);
 
+      // Display chosen filename
       zipInput.addEventListener("change", () => {
         fileName.textContent = zipInput.files.length ? zipInput.files[0].name : "No file chosen";
       });
 
+      // Click handler for filter chips
       filters.addEventListener("click", (event) => {
         const chip = event.target.closest("[data-label]");
         if (!chip || !state.result) {
@@ -1177,6 +1216,7 @@
         renderExperience();
       });
 
+      // Sort dropdown updates state
       sortMode.addEventListener("change", (event) => {
         state.sortMode = event.target.value;
         if (state.result) {
@@ -1184,9 +1224,11 @@
         }
       });
 
+      // Initial model info request
       fetchModelInfo().catch(() => {
         statusEl.textContent = "Model information could not be loaded.";
       });
+      // Initialise empty UI state
       buildMetricTiles(null);
       filters.innerHTML = "";
       tableWrap.innerHTML = `<div class="empty-state">No session loaded yet.</div>`;
