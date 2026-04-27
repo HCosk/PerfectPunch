@@ -48,12 +48,8 @@ function asyncHandler(handler) {
 }
 
 function getAppRedirectTarget(req, targetPath) {
-  // Build a proxy-safe redirect target
+  // Build a proxy-safe redirect target using a relative Location header
   const normalizedTarget = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
-  if (config.basePath) {
-    return config.withBasePath(normalizedTarget);
-  }
-  // Fall back to relative redirect
   const sourceDir = path.posix.dirname(req.path || "/");
   const relativeTarget = path.posix.relative(sourceDir, normalizedTarget);
   return relativeTarget || ".";
@@ -73,8 +69,11 @@ function parseSessionId(rawValue) {
 function resolveReturnTo(rawValue, fallbackPath) {
   // Block open-redirect return targets
   const value = String(rawValue || "").trim();
-  if (!value.startsWith("/")) {
+  if (!value) {
     return fallbackPath;
+  }
+  if (!value.startsWith("/")) {
+    return value === ".." || value === "." || value.startsWith("../") || value.startsWith("./") ? value : fallbackPath;
   }
   if (config.basePath) {
     return value === config.basePath || value.startsWith(`${config.basePath}/`) ? value : fallbackPath;
@@ -221,8 +220,8 @@ function buildCoreApp() {
       res.json({
         ok: true,
         sessionId,
-        // Resolve redirect for proxied deploys
-        redirectTo: config.basePath ? config.withBasePath(`/sessions/${sessionId}`) : `../sessions/${sessionId}`
+        // Relative redirect keeps proxy-prefixed deploys stable
+        redirectTo: `../sessions/${sessionId}`
       });
     })
   );
@@ -296,7 +295,7 @@ function buildCoreApp() {
       }
       try {
         await updateRecordedSession(req.user.id, sessionId, req.body || {});
-        return res.redirect(config.withBasePath(`/sessions/${sessionId}`));
+        return res.redirect(".");
       } catch (error) {
         // Re-render form with error message
         const viewModel = {
@@ -324,7 +323,7 @@ function buildCoreApp() {
           user: req.user
         }));
       }
-      const fallbackPath = config.withBasePath(`/sessions/${sessionId}`);
+      const fallbackPath = ".";
       const returnTo = resolveReturnTo(req.body.returnTo, fallbackPath);
       return res.redirect(returnTo);
     })
@@ -344,7 +343,7 @@ function buildCoreApp() {
           user: req.user
         }));
       }
-      return res.redirect(config.withBasePath("/history"));
+      return res.redirect("../../history");
     })
   );
 

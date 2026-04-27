@@ -771,7 +771,7 @@ function renderArmPanel(armRecord, user) {
 
 function renderSessionActionPanel(session) {
   // Hero action buttons for session
-  const returnTo = config.withBasePath(`/sessions/${session.id}`);
+  const returnTo = ".";
   return `
     <div class="hero-actions">
       <a class="primary-button" href="${config.withBasePath(`/compare${buildQueryString({ first: session.id })}`)}">Compare this session</a>
